@@ -1,13 +1,13 @@
-import { Day } from '$lib/enums/days';
-import type { DBSchedule, Schedule } from '$lib/server/db/schema';
-import { Time } from '@internationalized/date';
-import type { ScheduleRange, ScheduleUI } from '@types';
+import { Day } from "$lib/enums/days";
+import type { DBSchedule, Schedule } from "$lib/server/db/schema";
+import { Time } from "@internationalized/date";
+import type { ScheduleRange, ScheduleUI } from "@types";
 
 export function mapToUI(schedule: DBSchedule[], staffID: string): ScheduleUI {
 	// Group schedules by day
 	const grouped = Object.groupBy(
 		schedule.filter((el) => el.staffID === staffID),
-		({ day }) => day
+		({ day }) => day,
 	);
 
 	// Create a Map with all days initialized
@@ -19,7 +19,7 @@ export function mapToUI(schedule: DBSchedule[], staffID: string): ScheduleUI {
 		const ranges = (schedules || []).map((s) => ({
 			start: new Time(s.startHour, s.startMinute),
 			end: new Time(s.endHour, s.endMinute),
-			id: s.id
+			id: s.id,
 		}));
 		scheduleMap.set(dayNum, ranges);
 	});
@@ -34,7 +34,7 @@ export function initializeEmptyMap(): Map<Day, ScheduleRange[]> {
 	return m;
 }
 
-export function mapToDB(scheduleMap: Map<Day, ScheduleRange[]>): Omit<Schedule, 'staffID'>[] {
+export function mapToDB(scheduleMap: Map<Day, ScheduleRange[]>): Omit<Schedule, "staffID">[] {
 	const arr = Array.from(scheduleMap.entries()).map(([day, ranges]) => ({
 		day,
 		schedules: ranges.map(({ start, end, id }) => ({
@@ -42,11 +42,11 @@ export function mapToDB(scheduleMap: Map<Day, ScheduleRange[]>): Omit<Schedule, 
 			startMinute: start.minute,
 			endHour: end.hour,
 			endMinute: end.minute,
-			id
-		}))
+			id,
+		})),
 	}));
 
-	const dbarr: Omit<Schedule, 'staffID'>[] = [];
+	const dbarr: Omit<Schedule, "staffID">[] = [];
 	arr.forEach((el) => {
 		el.schedules.forEach((schedule) => {
 			dbarr.push({
@@ -54,7 +54,7 @@ export function mapToDB(scheduleMap: Map<Day, ScheduleRange[]>): Omit<Schedule, 
 				startHour: schedule.startHour,
 				startMinute: schedule.startMinute,
 				endHour: schedule.endHour,
-				endMinute: schedule.endMinute
+				endMinute: schedule.endMinute,
 			});
 		});
 	});

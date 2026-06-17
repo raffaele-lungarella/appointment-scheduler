@@ -1,9 +1,9 @@
-import { db } from '$lib/server/db';
-import * as table from '$lib/server/db/schema';
-import type { DBShutdown } from '$lib/server/db/schema';
-import { eq } from 'drizzle-orm';
-import { logger } from '../logger';
-import { Service } from './service';
+import { db } from "$lib/server/db";
+import * as table from "$lib/server/db/schema";
+import type { DBShutdown } from "$lib/server/db/schema";
+import { eq } from "drizzle-orm";
+import { logger } from "../logger";
+import { Service } from "./service";
 
 export class ShutdownService extends Service {
 	async getAll(): Promise<DBShutdown[] | null> {

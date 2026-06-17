@@ -3,8 +3,8 @@ import {
 	type TableOptions,
 	type TableOptionsResolved,
 	type TableState,
-	createTable
-} from '@tanstack/table-core';
+	createTable,
+} from "@tanstack/table-core";
 
 /**
  * Creates a reactive TanStack table object for Svelte.
@@ -40,12 +40,12 @@ export function createSvelteTable<TData extends RowData>(options: TableOptions<T
 			renderFallbackValue: null,
 			mergeOptions: (
 				defaultOptions: TableOptions<TData>,
-				options: Partial<TableOptions<TData>>
+				options: Partial<TableOptions<TData>>,
 			) => {
 				return mergeObjects(defaultOptions, options);
-			}
+			},
 		},
-		options
+		options,
 	);
 
 	const table = createTable(resolvedOptions);
@@ -61,7 +61,7 @@ export function createSvelteTable<TData extends RowData>(options: TableOptions<T
 					else state = mergeObjects(state, updater);
 
 					options.onStateChange?.(updater);
-				}
+				},
 			});
 		});
 	}
@@ -86,14 +86,14 @@ export function mergeObjects<T, U, V, W>(
 	source: T,
 	source1: U,
 	source2: V,
-	source3: W
+	source3: W,
 ): T & U & V & W;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function mergeObjects(...sources: any): any {
 	const target = {};
 	for (let i = 0; i < sources.length; i++) {
 		let source = sources[i];
-		if (typeof source === 'function') source = source();
+		if (typeof source === "function") source = source();
 		if (source) {
 			const descriptors = Object.getOwnPropertyDescriptors(source);
 			for (const key in descriptors) {
@@ -103,11 +103,11 @@ export function mergeObjects(...sources: any): any {
 					get() {
 						for (let i = sources.length - 1; i >= 0; i--) {
 							let s = sources[i];
-							if (typeof s === 'function') s = s();
+							if (typeof s === "function") s = s();
 							const v = (s || {})[key];
 							if (v !== undefined) return v;
 						}
-					}
+					},
 				});
 			}
 		}

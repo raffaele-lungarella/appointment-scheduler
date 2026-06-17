@@ -1,22 +1,22 @@
-import { db } from '$lib/server/db';
-import * as table from '$lib/server/db/schema';
-import { and, count, eq, isNotNull, lt } from 'drizzle-orm';
-import { logger } from '../logger';
-import { err, ok, type Result } from '$lib/modules/result';
-import { hash } from 'argon2';
-import { encodeBase32LowerCase } from '@oslojs/encoding';
-import { DAY_IN_MS } from '$lib/constants';
-import { emailSchema, passwordSchema } from '$lib/modules/zod-schemas';
-import type { DBUser, User } from '@types';
-import { StaffService } from '@service/staff.service';
-import { Service } from './service';
+import { db } from "$lib/server/db";
+import * as table from "$lib/server/db/schema";
+import { and, count, eq, isNotNull, lt } from "drizzle-orm";
+import { logger } from "../logger";
+import { err, ok, type Result } from "$lib/modules/result";
+import { hash } from "argon2";
+import { encodeBase32LowerCase } from "@oslojs/encoding";
+import { DAY_IN_MS } from "$lib/constants";
+import { emailSchema, passwordSchema } from "$lib/modules/zod-schemas";
+import type { DBUser, User } from "@types";
+import { StaffService } from "@service/staff.service";
+import { Service } from "./service";
 
 type InsertError =
-	| 'already-existing'
-	| 'data-required'
-	| 'invalid-email'
-	| 'invalid-pass'
-	| 'generic';
+	| "already-existing"
+	| "data-required"
+	| "invalid-email"
+	| "invalid-pass"
+	| "generic";
 
 export class UserService extends Service {
 	async insert(data: {
@@ -27,32 +27,32 @@ export class UserService extends Service {
 	}): Promise<Result<DBUser, InsertError>> {
 		try {
 			if (!data.email || !data.password) {
-				return err('data-required');
+				return err("data-required");
 			}
 
 			const email = data.email.toLowerCase().trim();
 
 			const isPresent = await this.getByEmail(email);
 			if (isPresent) {
-				return err('already-existing');
+				return err("already-existing");
 			}
 
 			const validEmail = emailSchema.safeParse(email);
 
 			if (!validEmail.success) {
-				return err('invalid-email');
+				return err("invalid-email");
 			}
 
 			const validPassword = passwordSchema.safeParse(data.password);
 			if (!validPassword.success) {
-				return err('invalid-pass');
+				return err("invalid-pass");
 			}
 
 			const passwordHash = await hash(data.password, {
 				// recommended minimum parameters
 				memoryCost: 19456,
 				timeCost: 2,
-				parallelism: 1
+				parallelism: 1,
 			});
 
 			const userID = this.generateUserId();
@@ -67,13 +67,13 @@ export class UserService extends Service {
 						name: data.name,
 						phoneNumber: data.phoneNumber,
 						verifiedEmail: false,
-						expiresAt: new Date(Date.now() + DAY_IN_MS)
+						expiresAt: new Date(Date.now() + DAY_IN_MS),
 					})
 					.returning()
-					.get()
+					.get(),
 			);
 		} catch {
-			return err('generic');
+			return err("generic");
 		}
 	}
 
@@ -87,7 +87,7 @@ export class UserService extends Service {
 				.get();
 
 			if (!user) {
-				logger.warn('User not found');
+				logger.warn("User not found");
 				return null;
 			}
 
@@ -95,13 +95,13 @@ export class UserService extends Service {
 
 			if (!staff) {
 				return {
-					role: 'user',
-					data: user
+					role: "user",
+					data: user,
 				};
 			} else {
 				return {
-					role: 'staff',
-					data: { ...user, ...staff }
+					role: "staff",
+					data: { ...user, ...staff },
 				};
 			}
 		} catch (e) {
@@ -120,19 +120,19 @@ export class UserService extends Service {
 				.get();
 
 			if (!result) {
-				logger.warn('User not found');
+				logger.warn("User not found");
 				return null;
 			}
 
 			if (!result.staff) {
 				return {
-					role: 'user',
-					data: result.user
+					role: "user",
+					data: result.user,
 				};
 			} else {
 				return {
-					role: 'staff',
-					data: { ...result.user, ...result.staff }
+					role: "staff",
+					data: { ...result.user, ...result.staff },
 				};
 			}
 		} catch (err) {
@@ -147,7 +147,7 @@ export class UserService extends Service {
 				.update(table.user)
 				.set({
 					verifiedEmail: true,
-					expiresAt: null
+					expiresAt: null,
 				})
 				.where(eq(table.user.id, id))
 				.returning()
@@ -178,7 +178,7 @@ export class UserService extends Service {
 			return await db
 				.update(table.user)
 				.set({
-					email
+					email,
 				})
 				.where(eq(table.user.id, id))
 				.returning()
@@ -251,7 +251,7 @@ export class UserService extends Service {
 				.select({ count: count() })
 				.from(table.user)
 				.where(
-					and(eq(table.user.verifiedEmail, false), lt(table.user.expiresAt, new Date()))
+					and(eq(table.user.verifiedEmail, false), lt(table.user.expiresAt, new Date())),
 				)
 				.get();
 
@@ -270,11 +270,11 @@ export class UserService extends Service {
 					and(
 						eq(table.user.verifiedEmail, false),
 						isNotNull(table.user.expiresAt),
-						lt(table.user.expiresAt, new Date())
-					)
+						lt(table.user.expiresAt, new Date()),
+					),
 				);
 		} catch (err) {
-			logger.error('Error while removing expired users');
+			logger.error("Error while removing expired users");
 			console.error(err);
 		}
 	}

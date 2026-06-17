@@ -1,18 +1,18 @@
-import pino from 'pino';
-import { dev } from '$app/environment';
+import pino from "pino";
+import { dev } from "$app/environment";
 
 let options: pino.LoggerOptions = {};
 
 if (dev) {
 	options = {
-		level: 'debug',
+		level: "debug",
 		transport: {
-			target: 'pino-pretty',
+			target: "pino-pretty",
 			options: {
-				colorize: true
-			}
+				colorize: true,
+			},
 		},
-		redact: []
+		redact: [],
 	};
 }
 export const logger = pino(options);

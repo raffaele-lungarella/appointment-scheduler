@@ -5,7 +5,7 @@ export enum Day {
 	THURSDAY,
 	FRIDAY,
 	SATURDAY,
-	SUNDAY
+	SUNDAY,
 }
 
 // export function asDay(day: string) {
@@ -30,20 +30,20 @@ export enum Day {
 export function getWeekDay(day: Day) {
 	switch (day) {
 		case Day.MONDAY:
-			return 'Lunedì';
+			return "Lunedì";
 		case Day.TUESDAY:
-			return 'Martedì';
+			return "Martedì";
 		case Day.WEDNESDAY:
-			return 'Mercoledì';
+			return "Mercoledì";
 		case Day.THURSDAY:
-			return 'Giovedì';
+			return "Giovedì";
 		case Day.FRIDAY:
-			return 'Venerdì';
+			return "Venerdì";
 		case Day.SATURDAY:
-			return 'Sabato';
+			return "Sabato";
 		case Day.SUNDAY:
-			return 'Domenica';
+			return "Domenica";
 		default:
-			return 'None';
+			return "None";
 	}
 }

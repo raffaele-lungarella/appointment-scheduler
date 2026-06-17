@@ -1,4 +1,4 @@
-import type { DateValue, Time } from '@internationalized/date';
+import type { DateValue, Time } from "@internationalized/date";
 import type {
 	DBBanner,
 	DBShutdown,
@@ -6,9 +6,9 @@ import type {
 	DBKind,
 	DBSession,
 	DBUser,
-	DBStaff
-} from '../server/db/schema';
-import type { Day } from '$lib/enums/days';
+	DBStaff,
+} from "../server/db/schema";
+import type { Day } from "$lib/enums/days";
 
 export type { DBBanner, DBShutdown, DBReservation, DBKind, DBSession, DBUser };
 
@@ -38,11 +38,11 @@ export type Reservation = {
 
 export type User =
 	| {
-			role: 'user';
+			role: "user";
 			data: DBUser;
 	  }
 	| {
-			role: 'staff';
+			role: "staff";
 			data: DBUser & DBStaff;
 	  };
 
@@ -54,7 +54,7 @@ export type Staff = {
 
 export type Data = AnonymousData | UsualData | StaffData;
 export type AnonymousData = {
-	who: 'anonymous';
+	who: "anonymous";
 	name: string;
 	email: string;
 	date: string;
@@ -65,7 +65,7 @@ export type AnonymousData = {
 };
 
 export type UsualData = {
-	who: 'usual';
+	who: "usual";
 	date: string;
 	hour: string;
 	kind: string;
@@ -73,7 +73,7 @@ export type UsualData = {
 };
 
 export type StaffData = {
-	who: 'staff';
+	who: "staff";
 	name?: string;
 	phone?: string;
 	date: string;
@@ -92,8 +92,8 @@ export type ScheduleRange = {
 export type ScheduleUI = Map<Day, ScheduleRange[]>;
 
 // You can also add client-specific utility types here
-export type UserWithoutPassword = Omit<DBUser, 'passwordHash'>;
-export type KindSummary = Pick<DBKind, 'id' | 'name' | 'price' | 'duration'>;
+export type UserWithoutPassword = Omit<DBUser, "passwordHash">;
+export type KindSummary = Pick<DBKind, "id" | "name" | "price" | "duration">;
 export type BusinessHours = {
 	start: Time;
 	end: Time;
@@ -110,4 +110,4 @@ export type Slot = {
 	past: boolean;
 };
 
-export type Tab = 'date' | 'kind' | 'info';
+export type Tab = "date" | "kind" | "info";

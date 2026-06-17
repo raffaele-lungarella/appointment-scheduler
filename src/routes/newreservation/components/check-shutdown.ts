@@ -1,5 +1,5 @@
-import { parseDate, type DateValue } from '@internationalized/date';
-import type { DBShutdown } from '@types';
+import { parseDate, type DateValue } from "@internationalized/date";
+import type { DBShutdown } from "@types";
 
 /**
  * Checks if a date is unavailable due to staff shutdown periods.

@@ -1,8 +1,8 @@
-import { db } from '$lib/server/db';
-import * as table from '$lib/server/db/schema';
-import { eq, lt } from 'drizzle-orm';
-import { logger } from '../logger';
-import { Service } from './service';
+import { db } from "$lib/server/db";
+import * as table from "$lib/server/db/schema";
+import { eq, lt } from "drizzle-orm";
+import { logger } from "../logger";
+import { Service } from "./service";
 
 export class EmailVerificationService extends Service {
 	async insert(newEmail: string, userID: string) {
@@ -16,7 +16,7 @@ export class EmailVerificationService extends Service {
 					id: crypto.randomUUID(),
 					userID,
 					expiresAt,
-					email: newEmail.toLowerCase().trim()
+					email: newEmail.toLowerCase().trim(),
 				})
 				.returning()
 				.get();
@@ -67,7 +67,7 @@ export class EmailVerificationService extends Service {
 				.delete(table.emailVerification)
 				.where(lt(table.emailVerification.expiresAt, new Date()));
 		} catch (err) {
-			logger.error('Error while removing expired verify email records');
+			logger.error("Error while removing expired verify email records");
 			console.error(err);
 		}
 	}

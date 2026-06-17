@@ -1,12 +1,12 @@
 type Getter<T> = () => T;
-import { untrack } from 'svelte';
+import { untrack } from "svelte";
 
-function runEffect(flush: 'post' | 'pre', effect: () => void | VoidFunction): void {
+function runEffect(flush: "post" | "pre", effect: () => void | VoidFunction): void {
 	switch (flush) {
-		case 'post':
+		case "post":
 			$effect(effect);
 			break;
-		case 'pre':
+		case "pre":
 			$effect.pre(effect);
 			break;
 	}
@@ -23,12 +23,12 @@ export type WatchOptions = {
 
 function runWatcher<T>(
 	sources: Getter<T> | Array<Getter<T>>,
-	flush: 'post' | 'pre',
+	flush: "post" | "pre",
 	effect: (
 		values: T | Array<T>,
-		previousValues: T | undefined | Array<T | undefined>
+		previousValues: T | undefined | Array<T | undefined>,
 	) => void | VoidFunction,
-	options: WatchOptions = {}
+	options: WatchOptions = {},
 ): void {
 	const { lazy = false } = options;
 
@@ -60,8 +60,8 @@ function runWatcher<T>(
 
 function runWatcherOnce<T>(
 	sources: Getter<T> | Array<Getter<T>>,
-	flush: 'post' | 'pre',
-	effect: (values: T | Array<T>, previousValues: T | Array<T>) => void | VoidFunction
+	flush: "post" | "pre",
+	effect: (values: T | Array<T>, previousValues: T | Array<T>) => void | VoidFunction,
 ): void {
 	const cleanupRoot = $effect.root(() => {
 		let stop = false;
@@ -81,7 +81,7 @@ function runWatcherOnce<T>(
 			},
 			// Running the effect immediately just once makes no sense at all.
 			// That's just `onMount` with extra steps.
-			{ lazy: true }
+			{ lazy: true },
 		);
 	});
 
@@ -98,26 +98,26 @@ export function watch<T extends Array<unknown>>(
 		values: T,
 		previousValues: {
 			[K in keyof T]: T[K] | undefined;
-		}
+		},
 	) => void | VoidFunction,
-	options?: WatchOptions
+	options?: WatchOptions,
 ): void;
 
 export function watch<T>(
 	source: Getter<T>,
 	effect: (value: T, previousValue: T | undefined) => void | VoidFunction,
-	options?: WatchOptions
+	options?: WatchOptions,
 ): void;
 
 export function watch<T>(
 	sources: Getter<T> | Array<Getter<T>>,
 	effect: (
 		values: T | Array<T>,
-		previousValues: T | undefined | Array<T | undefined>
+		previousValues: T | undefined | Array<T | undefined>,
 	) => void | VoidFunction,
-	options?: WatchOptions
+	options?: WatchOptions,
 ): void {
-	runWatcher(sources, 'post', effect, options);
+	runWatcher(sources, "post", effect, options);
 }
 
 function watchPre<T extends Array<unknown>>(
@@ -128,26 +128,26 @@ function watchPre<T extends Array<unknown>>(
 		values: T,
 		previousValues: {
 			[K in keyof T]: T[K] | undefined;
-		}
+		},
 	) => void | VoidFunction,
-	options?: WatchOptions
+	options?: WatchOptions,
 ): void;
 
 function watchPre<T>(
 	source: Getter<T>,
 	effect: (value: T, previousValue: T | undefined) => void | VoidFunction,
-	options?: WatchOptions
+	options?: WatchOptions,
 ): void;
 
 function watchPre<T>(
 	sources: Getter<T> | Array<Getter<T>>,
 	effect: (
 		values: T | Array<T>,
-		previousValues: T | undefined | Array<T | undefined>
+		previousValues: T | undefined | Array<T | undefined>,
 	) => void | VoidFunction,
-	options?: WatchOptions
+	options?: WatchOptions,
 ): void {
-	runWatcher(sources, 'pre', effect, options);
+	runWatcher(sources, "pre", effect, options);
 }
 
 watch.pre = watchPre;
@@ -156,38 +156,38 @@ export function watchOnce<T extends Array<unknown>>(
 	sources: {
 		[K in keyof T]: Getter<T[K]>;
 	},
-	effect: (values: T, previousValues: T) => void | VoidFunction
+	effect: (values: T, previousValues: T) => void | VoidFunction,
 ): void;
 
 export function watchOnce<T>(
 	source: Getter<T>,
-	effect: (value: T, previousValue: T) => void | VoidFunction
+	effect: (value: T, previousValue: T) => void | VoidFunction,
 ): void;
 
 export function watchOnce<T>(
 	source: Getter<T> | Array<Getter<T>>,
-	effect: (value: T | Array<T>, previousValue: T | Array<T>) => void | VoidFunction
+	effect: (value: T | Array<T>, previousValue: T | Array<T>) => void | VoidFunction,
 ): void {
-	runWatcherOnce(source, 'post', effect);
+	runWatcherOnce(source, "post", effect);
 }
 
 function watchOncePre<T extends Array<unknown>>(
 	sources: {
 		[K in keyof T]: Getter<T[K]>;
 	},
-	effect: (values: T, previousValues: T) => void | VoidFunction
+	effect: (values: T, previousValues: T) => void | VoidFunction,
 ): void;
 
 function watchOncePre<T>(
 	source: Getter<T>,
-	effect: (value: T, previousValue: T) => void | VoidFunction
+	effect: (value: T, previousValue: T) => void | VoidFunction,
 ): void;
 
 function watchOncePre<T>(
 	source: Getter<T> | Array<Getter<T>>,
-	effect: (value: T | Array<T>, previousValue: T | Array<T>) => void | VoidFunction
+	effect: (value: T | Array<T>, previousValue: T | Array<T>) => void | VoidFunction,
 ): void {
-	runWatcherOnce(source, 'pre', effect);
+	runWatcherOnce(source, "pre", effect);
 }
 
 watchOnce.pre = watchOncePre;

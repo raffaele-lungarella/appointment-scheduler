@@ -1,13 +1,13 @@
-import { logger } from '../logger';
-import { UserService } from './user.service';
-import { SessionService } from './session.service';
-import { EmailVerificationService } from './email-verification.service';
-import { PasswordRecoverService } from './password-recover.service';
-import { ReservationService } from './reservation.service';
-import { db } from '$lib/server/db';
-import * as table from '$lib/server/db/schema';
-import { and, eq, isNotNull, lt } from 'drizzle-orm';
-import { Service } from './service';
+import { logger } from "../logger";
+import { UserService } from "./user.service";
+import { SessionService } from "./session.service";
+import { EmailVerificationService } from "./email-verification.service";
+import { PasswordRecoverService } from "./password-recover.service";
+import { ReservationService } from "./reservation.service";
+import { db } from "$lib/server/db";
+import * as table from "$lib/server/db/schema";
+import { and, eq, isNotNull, lt } from "drizzle-orm";
+import { Service } from "./service";
 
 export class CleanupService extends Service {
 	async deleteExpiredItems() {
@@ -19,7 +19,7 @@ export class CleanupService extends Service {
 			await Promise.all([
 				reservationService.deleteAllExpired(),
 				emailVerificationService.deleteAllExpired(),
-				passwordRecoverService.deleteAllExpired()
+				passwordRecoverService.deleteAllExpired(),
 			]);
 
 			await this.deleteExpiredUsers();
@@ -42,8 +42,8 @@ export class CleanupService extends Service {
 					and(
 						eq(table.user.verifiedEmail, false),
 						isNotNull(table.user.expiresAt),
-						lt(table.user.expiresAt, new Date())
-					)
+						lt(table.user.expiresAt, new Date()),
+					),
 				);
 
 			if (expiredUsers.length === 0) {
@@ -58,7 +58,7 @@ export class CleanupService extends Service {
 
 			await UserService.get().deleteAllExpired();
 		} catch (err) {
-			logger.error('Error while removing expired users');
+			logger.error("Error while removing expired users");
 			console.error(err);
 		}
 	}

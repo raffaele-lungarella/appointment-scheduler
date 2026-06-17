@@ -1,9 +1,9 @@
-import { db } from '$lib/server/db';
-import * as table from '$lib/server/db/schema';
-import { eq } from 'drizzle-orm';
-import { logger } from '../logger';
-import { ok, err, type Result } from '$lib/modules/result';
-import { Service } from './service';
+import { db } from "$lib/server/db";
+import * as table from "$lib/server/db/schema";
+import { eq } from "drizzle-orm";
+import { logger } from "../logger";
+import { ok, err, type Result } from "$lib/modules/result";
+import { Service } from "./service";
 
 export class KindService extends Service {
 	async getAll(onlyActive: boolean = true) {
@@ -32,8 +32,8 @@ export class KindService extends Service {
 		try {
 			return ok(await db.insert(table.kind).values(kind).returning().get());
 		} catch (e) {
-			logger.error(e, 'Error while adding kind');
-			return err('Could not insert kind');
+			logger.error(e, "Error while adding kind");
+			return err("Could not insert kind");
 		}
 	}
 
@@ -41,7 +41,7 @@ export class KindService extends Service {
 		try {
 			// Make sure we have an ID for the update
 			if (!kind.id) {
-				logger.error('Attempted to update kind without ID');
+				logger.error("Attempted to update kind without ID");
 				return null;
 			}
 
@@ -54,7 +54,7 @@ export class KindService extends Service {
 				.returning()
 				.get();
 		} catch (err) {
-			logger.error({ err, kindID: kind.id }, 'Error while updating kind');
+			logger.error({ err, kindID: kind.id }, "Error while updating kind");
 			return null;
 		}
 	}

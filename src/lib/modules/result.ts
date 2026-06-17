@@ -1,7 +1,7 @@
 export type Result<T, E = Error> = Ok<T> | Err<E>;
 
 export class Ok<T> {
-	readonly kind = 'ok' as const;
+	readonly kind = "ok" as const;
 
 	constructor(public readonly value: T) {}
 
@@ -32,7 +32,7 @@ export class Ok<T> {
 }
 
 export class Err<E> {
-	readonly kind = 'err' as const;
+	readonly kind = "err" as const;
 
 	constructor(public readonly error: E) {}
 

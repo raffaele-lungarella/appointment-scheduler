@@ -1,8 +1,8 @@
-import { db } from '$lib/server/db';
-import * as table from '$lib/server/db/schema';
-import { eq, lt } from 'drizzle-orm';
-import { logger } from '../logger';
-import { Service } from './service';
+import { db } from "$lib/server/db";
+import * as table from "$lib/server/db/schema";
+import { eq, lt } from "drizzle-orm";
+import { logger } from "../logger";
+import { Service } from "./service";
 
 export class PasswordRecoverService extends Service {
 	async insert(userID: string) {
@@ -15,7 +15,7 @@ export class PasswordRecoverService extends Service {
 				.values({
 					id: crypto.randomUUID(),
 					userID,
-					expiresAt
+					expiresAt,
 				})
 				.returning()
 				.get();
@@ -69,7 +69,7 @@ export class PasswordRecoverService extends Service {
 				.delete(table.passwordRecover)
 				.where(lt(table.passwordRecover.expiresAt, new Date()));
 		} catch (err) {
-			logger.error('Error while removing expired passwords recover records');
+			logger.error("Error while removing expired passwords recover records");
 			console.error(err);
 		}
 	}

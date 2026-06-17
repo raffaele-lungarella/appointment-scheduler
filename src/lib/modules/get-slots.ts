@@ -1,4 +1,4 @@
-import type { ReservedSlot, ScheduleUI, Slot } from '@types';
+import type { ReservedSlot, ScheduleUI, Slot } from "@types";
 import {
 	type CalendarDate,
 	getDayOfWeek,
@@ -6,8 +6,9 @@ import {
 	isToday,
 	now,
 	Time,
-	type DateValue
-} from '@internationalized/date';
+	type DateValue,
+} from "@internationalized/date";
+import { isSlotAvailable } from "./reservation-overlap";
 
 export const SlotDuration = new Time(0, 15);
 
@@ -15,7 +16,7 @@ export const getSlots = (
 	date: CalendarDate,
 	reservations: ReservedSlot[],
 	schedule: ScheduleUI,
-	kind?: Time
+	kind?: Time,
 ) => {
 	let slots = generateSlots(date, schedule);
 
@@ -81,21 +82,8 @@ function slotsWithoutGaps(slots: Slot[]) {
 	return true;
 }
 
-function isAvailable(slot: Slot, reservations: ReservedSlot[]): boolean {
-	for (const r of reservations) {
-		const startInterval = r.start;
-		const endInterval = r.start.add({ hours: r.duration.hour, minutes: r.duration.minute });
-
-		if (slot.start.compare(startInterval) >= 0 && slot.start.compare(endInterval) < 0) {
-			return false;
-		}
-	}
-
-	return true;
-}
-
 function reserved(slots: Slot[], reservations: ReservedSlot[]): Slot[] {
-	return slots.map((s) => ({ ...s, available: isAvailable(s, reservations) }));
+	return slots.map((s) => ({ ...s, available: isSlotAvailable(s.start, reservations) }));
 }
 
 function slotCount(duration: Time, slotDuration: Time): number {
@@ -105,13 +93,13 @@ function slotCount(duration: Time, slotDuration: Time): number {
 }
 
 function generateSlots(date: DateValue, schedule: ScheduleUI) {
-	const dayOfTheWeek = getDayOfWeek(date, 'it-IT');
+	const dayOfTheWeek = getDayOfWeek(date, "it-IT");
 	const businessIntervals = schedule.get(dayOfTheWeek);
 	if (!businessIntervals) {
 		return [];
 	}
 	return businessIntervals.flatMap((interval) =>
-		generateSlotsFromInterval(interval.start, interval.end)
+		generateSlotsFromInterval(interval.start, interval.end),
 	);
 }
 

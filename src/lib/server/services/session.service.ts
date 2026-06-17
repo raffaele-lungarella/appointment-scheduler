@@ -1,8 +1,8 @@
-import { db } from '$lib/server/db';
-import * as table from '$lib/server/db/schema';
-import { eq } from 'drizzle-orm';
-import { logger } from '../logger';
-import { Service } from './service';
+import { db } from "$lib/server/db";
+import * as table from "$lib/server/db/schema";
+import { eq } from "drizzle-orm";
+import { logger } from "../logger";
+import { Service } from "./service";
 
 export class SessionService extends Service {
 	async insert(session: table.DBSession) {

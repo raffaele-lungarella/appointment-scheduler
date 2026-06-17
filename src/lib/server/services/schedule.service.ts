@@ -1,9 +1,9 @@
-import * as table from '$lib/server/db/schema';
-import { logger } from '../logger';
-import { db } from '$lib/server/db';
-import type { DBSchedule, Schedule } from '$lib/server/db/schema';
-import { eq } from 'drizzle-orm';
-import { Service } from './service';
+import * as table from "$lib/server/db/schema";
+import { logger } from "../logger";
+import { db } from "$lib/server/db";
+import type { DBSchedule, Schedule } from "$lib/server/db/schema";
+import { eq } from "drizzle-orm";
+import { Service } from "./service";
 
 export class ScheduleService extends Service {
 	async getAll(): Promise<DBSchedule[] | null> {

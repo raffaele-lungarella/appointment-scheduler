@@ -3,17 +3,17 @@ export enum PageCase {
 	CONFIRM_USER,
 	PENDING_RESERVATION,
 	RECOVER_PASSWORD,
-	NORMAL
+	NORMAL,
 }
 
 export function getPageCase(url: URL) {
-	if (url.searchParams.get('reservation')) {
+	if (url.searchParams.get("reservation")) {
 		return PageCase.CONFIRM_RESERVATION;
-	} else if (url.searchParams.get('user')) {
+	} else if (url.searchParams.get("user")) {
 		return PageCase.CONFIRM_USER;
-	} else if (url.searchParams.get('pending')) {
+	} else if (url.searchParams.get("pending")) {
 		return PageCase.PENDING_RESERVATION;
-	} else if (url.searchParams.get('recover')) {
+	} else if (url.searchParams.get("recover")) {
 		return PageCase.RECOVER_PASSWORD;
 	} else {
 		return PageCase.NORMAL;

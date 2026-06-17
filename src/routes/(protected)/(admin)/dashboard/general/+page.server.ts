@@ -1,11 +1,11 @@
-import { logger } from '$lib/server/logger';
-import { getBoolean, getNumber, getString } from '$lib/utils';
-import type { Actions, PageServerLoad } from './$types';
-import { KindService } from '@service/kind.service';
-import { error } from '@sveltejs/kit';
-import { BannerService } from '@service/banner.service';
-import { StaffService } from '@service/staff.service';
-import { CleanupService } from '@service/clean-up.service';
+import { logger } from "$lib/server/logger";
+import { getBoolean, getNumber, getString } from "$lib/utils";
+import type { Actions, PageServerLoad } from "./$types";
+import { KindService } from "@service/kind.service";
+import { error } from "@sveltejs/kit";
+import { BannerService } from "@service/banner.service";
+import { StaffService } from "@service/staff.service";
+import { CleanupService } from "@service/clean-up.service";
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user) {
@@ -18,7 +18,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	}
 	return {
 		banner: await BannerService.get().get(),
-		kinds
+		kinds,
 	};
 };
 
@@ -26,32 +26,32 @@ export const actions: Actions = {
 	updateBanner: async ({ request }) => {
 		const data = await request.formData();
 
-		const message = getString(data, 'message');
-		const visible = getBoolean(data, 'visible');
+		const message = getString(data, "message");
+		const visible = getBoolean(data, "visible");
 
 		await BannerService.get().update(message, visible);
 	},
 	updateKind: async ({ request, locals }) => {
 		const data = await request.formData();
 
-		const id = getString(data, 'id');
-		const name = getString(data, 'name');
-		const description = getString(data, 'description');
-		const duration = getNumber(data, 'duration');
-		const price = getNumber(data, 'price');
-		const active = getBoolean(data, 'active');
+		const id = getString(data, "id");
+		const name = getString(data, "name");
+		const description = getString(data, "description");
+		const duration = getNumber(data, "duration");
+		const price = getNumber(data, "price");
+		const active = getBoolean(data, "active");
 
 		if (!id || !name || !duration || !price) {
 			return {
 				isUpdatingKind: true,
-				success: false
+				success: false,
 			};
 		}
 
 		const kinds = KindService.get();
 		if (!locals.user) {
 			return {
-				success: false
+				success: false,
 			};
 		}
 
@@ -63,43 +63,43 @@ export const actions: Actions = {
 			duration,
 			price,
 			active,
-			staffID
+			staffID,
 		});
 
 		if (response) {
 			return {
 				isUpdatingKind: true,
-				success: true
+				success: true,
 			};
 		} else {
 			return {
 				isUpdatingKind: true,
-				success: false
+				success: false,
 			};
 		}
 	},
 	addKind: async ({ request, locals }) => {
 		const data = await request.formData();
 
-		const name = getString(data, 'name');
-		const description = getString(data, 'description');
-		const duration = getNumber(data, 'duration');
-		const price = getNumber(data, 'price');
-		const active = getBoolean(data, 'active');
+		const name = getString(data, "name");
+		const description = getString(data, "description");
+		const duration = getNumber(data, "duration");
+		const price = getNumber(data, "price");
+		const active = getBoolean(data, "active");
 
 		if (!locals.user) {
 			return {
-				success: false
+				success: false,
 			};
 		}
 
 		const staffID = locals.user.data.id;
 
 		if (!name || !duration || !price) {
-			logger.error('Data is not enough to add a kind');
+			logger.error("Data is not enough to add a kind");
 			return {
 				isAddingKind: true,
-				success: false
+				success: false,
 			};
 		}
 
@@ -111,59 +111,59 @@ export const actions: Actions = {
 			duration,
 			price,
 			active,
-			staffID
+			staffID,
 		});
 
 		if (response) {
 			return {
 				isAddingKind: true,
-				success: true
+				success: true,
 			};
 		} else {
-			logger.error('Could not add service');
+			logger.error("Could not add service");
 			return {
 				isAddingKind: true,
-				success: false
+				success: false,
 			};
 		}
 	},
 	deleteKind: async ({ request }) => {
 		const data = await request.formData();
 
-		const id = getString(data, 'id');
+		const id = getString(data, "id");
 
 		if (!id) {
-			logger.error('Id not sent');
+			logger.error("Id not sent");
 			return {
 				isDeletingKind: true,
-				success: false
+				success: false,
 			};
 		}
 
 		const response = await KindService.get().delete(id);
 
 		if (response) {
-			logger.info('Delete kind' + `${response.name}`);
+			logger.info("Delete kind" + `${response.name}`);
 			return {
 				isDeletingKind: true,
-				success: true
+				success: true,
 			};
 		} else {
-			logger.error('Could not delete kind');
+			logger.error("Could not delete kind");
 			return {
 				isDeletingKind: true,
-				success: false
+				success: false,
 			};
 		}
 	},
 	toggleStaff: async ({ request }) => {
 		const data = await request.formData();
-		const active = getBoolean(data, 'active');
-		const id = getString(data, 'id');
+		const active = getBoolean(data, "active");
+		const id = getString(data, "id");
 
 		return await StaffService.get().toggleActive(active, id);
 	},
 	clean: async () => {
 		await CleanupService.get().deleteExpiredItems();
-	}
+	},
 };

@@ -1,13 +1,13 @@
-import { Resend } from 'resend';
-import { MAILER } from '$env/static/private';
-import { BARBER_SHOP_DETAILS } from '$lib/constants';
-import { logger } from './logger';
-import { err, ok } from '$lib/modules/result';
+import { Resend } from "resend";
+import { MAILER } from "$env/static/private";
+import { BARBER_SHOP_DETAILS } from "$lib/constants";
+import { logger } from "./logger";
+import { err, ok } from "$lib/modules/result";
 
 const resend = new Resend(MAILER);
 
 export class EmailService {
-	#from = 'Emi Hair Club <users@mailer.emihairclub.com>';
+	#from = "Emi Hair Club <users@mailer.emihairclub.com>";
 	private async send(payload: { body: string; to: string; subject: string }) {
 		try {
 			const emailResponse = await resend.emails.send({
@@ -15,17 +15,17 @@ export class EmailService {
 				from: this.#from,
 				to: payload.to,
 				subject: payload.subject,
-				html: `${TEMPLATE(payload.body)}`
+				html: `${TEMPLATE(payload.body)}`,
 			});
 
 			if (emailResponse.data) {
 				return ok(emailResponse.data.id);
 			} else {
-				throw new Error('');
+				throw new Error("");
 			}
 		} catch {
 			logger.error({ payload }, `Could not send email with payload: `);
-			return err('generic-error');
+			return err("generic-error");
 		}
 	}
 
@@ -43,7 +43,7 @@ export class EmailService {
 
 		<p>Se l'email ti è stata inviata per sbaglio, ignorala</p>
 		`;
-		return await this.send({ body, to: data.to, subject: 'Verifica email' });
+		return await this.send({ body, to: data.to, subject: "Verifica email" });
 	}
 
 	async recoverPassword(data: { name: string; link: string; to: string }) {
@@ -59,7 +59,7 @@ export class EmailService {
 			</div>
 			`;
 
-		return await this.send({ body, to: data.to, subject: 'Richiesta di cambio password' });
+		return await this.send({ body, to: data.to, subject: "Richiesta di cambio password" });
 	}
 
 	async newReservation(data: {
@@ -91,7 +91,7 @@ export class EmailService {
 		</div>
 		`;
 
-		return await this.send({ body, to: data.to, subject: 'Conferma prenotazione' });
+		return await this.send({ body, to: data.to, subject: "Conferma prenotazione" });
 	}
 
 	async changeEmail(data: { name: string; link: string; to: string }) {
@@ -107,7 +107,7 @@ export class EmailService {
 			</div>
 		`;
 
-		return await this.send({ body, to: data.to, subject: 'Cambio mail' });
+		return await this.send({ body, to: data.to, subject: "Cambio mail" });
 	}
 }
 
@@ -212,8 +212,8 @@ const TEMPLATE = (CONTENT: string) =>
 				<p>
 					<strong>Emi Hair Club</strong>
 					<br />
-					${BARBER_SHOP_DETAILS.street ?? ''}<br />
-					${BARBER_SHOP_DETAILS.phone ?? ''}
+					${BARBER_SHOP_DETAILS.street ?? ""}<br />
+					${BARBER_SHOP_DETAILS.phone ?? ""}
 				</p>
 				<div class="footer">
 					<p>${new Date().getFullYear()} Emi Hair Club</p>

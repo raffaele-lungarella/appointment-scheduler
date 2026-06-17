@@ -1,4 +1,4 @@
-import { LOCK_DURATION } from '$lib/constants';
+import { LOCK_DURATION } from "$lib/constants";
 
 export default class Timer {
 	timeLeft: number = $state(0);
@@ -72,6 +72,6 @@ export default class Timer {
 		const totalSeconds = Math.floor(this.timeLeft / 1000);
 		const minutes = Math.floor(totalSeconds / 60);
 		const seconds = totalSeconds % 60;
-		return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+		return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
 	}
 }

@@ -1,20 +1,23 @@
-import { db } from '$lib/server/db';
-import * as table from '$lib/server/db/schema';
-import { and, count, eq, gt, lt, sql } from 'drizzle-orm';
-import { logger } from '../logger';
-import { err, ok, type Result } from '$lib/modules/result';
-import { LOCK_DURATION } from '$lib/constants';
-import type { AnonymousData, DBUser, Reservation, StaffData, UsualData } from '@types';
-import { anonymousUserSchema, staffUserSchema, usualUserSchema } from '@schema';
-import { alias } from 'drizzle-orm/sqlite-core/alias';
-import { Service } from './service';
+import { db } from "$lib/server/db";
+import * as table from "$lib/server/db/schema";
+import { and, eq, gt, lt, sql } from "drizzle-orm";
+import { logger } from "../logger";
+import { err, ok, type Result } from "$lib/modules/result";
+import { LOCK_DURATION } from "$lib/constants";
+import type { AnonymousData, DBUser, Reservation, StaffData, UsualData } from "@types";
+import { anonymousUserSchema, staffUserSchema, usualUserSchema } from "@schema";
+import { alias } from "drizzle-orm/sqlite-core/alias";
+import { Service } from "./service";
+import { parseTime } from "@internationalized/date";
+import { minutesToTime } from "$lib/utils";
+import { hasReservationConflict } from "$lib/modules/reservation-overlap";
 
-type InsertError = 'conflict' | 'invalid-data' | 'server-err';
+type InsertError = "conflict" | "invalid-data" | "server-err";
 
 export class ReservationService extends Service {
 	private getReservations() {
-		const staffUser = alias(table.user, 'staffUser');
-		const customerUser = alias(table.user, 'customerUser');
+		const staffUser = alias(table.user, "staffUser");
+		const customerUser = alias(table.user, "customerUser");
 
 		return db
 			.select({
@@ -27,18 +30,18 @@ export class ReservationService extends Service {
 				expiresAt: table.reservation.expiresAt,
 				staff: {
 					id: staffUser.id,
-					name: staffUser.name
+					name: staffUser.name,
 				},
 				kind: {
 					duration: table.kind.duration,
 					name: table.kind.name,
-					price: table.kind.price
+					price: table.kind.price,
 				},
 				user: {
 					name: customerUser.name,
 					email: customerUser.email,
-					id: customerUser.id
-				}
+					id: customerUser.id,
+				},
 			})
 			.from(table.reservation)
 			.innerJoin(table.kind, eq(table.reservation.kindID, table.kind.id))
@@ -53,7 +56,7 @@ export class ReservationService extends Service {
 
 			if (!schema.success) {
 				logger.error(schema.error.issues);
-				return err('invalid-data');
+				return err("invalid-data");
 			}
 
 			const { date, hour, kind, staff } = schema.data;
@@ -72,26 +75,26 @@ export class ReservationService extends Service {
 				email: user.email,
 				pending: false,
 				expiresAt,
-				staffID: staff
+				staffID: staff,
 			};
 
 			const queryRes = await this.insertWithAvailabilityCheck(reservation);
 
 			if (queryRes.isErr()) {
-				logger.error('Could not insert reservation');
+				logger.error("Could not insert reservation");
 				return err(queryRes.error);
 			}
 
 			const fullReservation = await this.getByID(queryRes.unwrap().id);
 			if (!fullReservation) {
-				logger.error('Could not fetch inserted reservation');
-				return err('server-err');
+				logger.error("Could not fetch inserted reservation");
+				return err("server-err");
 			}
 
 			return ok(fullReservation);
 		} catch (e) {
-			logger.error({ e }, 'Error while adding usual user');
-			return err('server-err');
+			logger.error({ e }, "Error while adding usual user");
+			return err("server-err");
 		}
 	}
 
@@ -103,13 +106,13 @@ export class ReservationService extends Service {
 				date: data.date?.toString(),
 				hour: data.hour,
 				kind: data.kind,
-				staff: data.staff
+				staff: data.staff,
 			});
 
 			if (!schema.success) {
 				const { path } = schema.error.issues[0];
-				logger.warn({ reason: path }, 'Could not create reservation');
-				return err('invalid-data');
+				logger.warn({ reason: path }, "Could not create reservation");
+				return err("invalid-data");
 			}
 
 			const reservation: table.DBReservation = {
@@ -122,44 +125,44 @@ export class ReservationService extends Service {
 				email: schema.data.email,
 				expiresAt: new Date(Date.now() + LOCK_DURATION),
 				pending: true,
-				staffID: schema.data.staff
+				staffID: schema.data.staff,
 			};
 
 			const queryRes = await this.insertWithAvailabilityCheck(reservation);
 
 			if (queryRes.isErr()) {
-				logger.error('Could not insert reservation');
+				logger.error("Could not insert reservation");
 				return err(queryRes.error);
 			}
 
 			const fullReservation = await this.getByID(queryRes.unwrap().id);
 			if (!fullReservation) {
-				logger.error('Could not fetch inserted reservation');
-				return err('server-err');
+				logger.error("Could not fetch inserted reservation");
+				return err("server-err");
 			}
 
 			return ok(fullReservation);
 		} catch (e) {
 			logger.error(e);
-			return err('server-err');
+			return err("server-err");
 		}
 	}
 
 	async insertByStaff(
 		data: StaffData,
 		user: DBUser,
-		alternativeName?: string
+		alternativeName?: string,
 	): Promise<Result<Reservation, InsertError>> {
 		try {
 			const schema = staffUserSchema.safeParse({
 				...data,
-				name: alternativeName ?? 'Inserito da staff',
-				date: data.date?.toString()
+				name: alternativeName ?? "Inserito da staff",
+				date: data.date?.toString(),
 			});
 
 			if (!schema.success) {
 				logger.error(schema.error.issues);
-				return err('invalid-data');
+				return err("invalid-data");
 			}
 
 			const { date, hour, kind, staff, name } = schema.data;
@@ -178,26 +181,26 @@ export class ReservationService extends Service {
 				pending: false,
 				expiresAt,
 				staffID: staff,
-				phoneNumber: null
+				phoneNumber: null,
 			};
 
 			const queryRes = await this.insertWithAvailabilityCheck(reservation);
 
 			if (queryRes.isErr()) {
-				logger.error('Could not insert reservation');
+				logger.error("Could not insert reservation");
 				return err(queryRes.error);
 			}
 
 			const fullReservation = await this.getByID(queryRes.unwrap().id);
 			if (!fullReservation) {
-				logger.error('Could not fetch inserted reservation');
-				return err('server-err');
+				logger.error("Could not fetch inserted reservation");
+				return err("server-err");
 			}
 
 			return ok(fullReservation);
 		} catch (e) {
-			logger.error({ e }, 'Error while adding usual user');
-			return err('server-err');
+			logger.error({ e }, "Error while adding usual user");
+			return err("server-err");
 		}
 	}
 
@@ -215,8 +218,8 @@ export class ReservationService extends Service {
 			return await this.getReservations().where(
 				and(
 					and(eq(table.reservation.date, date), eq(table.reservation.pending, false)),
-					eq(table.staff.userID, staffID)
-				)
+					eq(table.staff.userID, staffID),
+				),
 			);
 		} catch (err) {
 			console.error(err);
@@ -227,7 +230,7 @@ export class ReservationService extends Service {
 	async getByUser(email: string): Promise<Reservation[] | null> {
 		try {
 			return await this.getReservations().where(
-				eq(table.reservation.email, email.toLowerCase().trim())
+				eq(table.reservation.email, email.toLowerCase().trim()),
 			);
 		} catch (e) {
 			logger.error(e);
@@ -273,7 +276,7 @@ export class ReservationService extends Service {
 				.delete(table.reservation)
 				.where(lt(table.reservation.expiresAt, new Date()));
 		} catch (err) {
-			logger.error('Error while removing expired reservations');
+			logger.error("Error while removing expired reservations");
 			console.error(err);
 		}
 	}
@@ -287,7 +290,7 @@ export class ReservationService extends Service {
 				.update(table.reservation)
 				.set({
 					pending: false,
-					expiresAt: sql`strftime('%s', datetime(${table.reservation.date}, '+1 day'))`
+					expiresAt: sql`strftime('%s', datetime(${table.reservation.date}, '+1 day'))`,
 				})
 				.where(eq(table.reservation.id, id))
 				.returning()
@@ -295,7 +298,7 @@ export class ReservationService extends Service {
 
 			const fullReservation = await this.getByID(updated.id);
 			if (!fullReservation) {
-				logger.error('Could not fetch inserted reservation');
+				logger.error("Could not fetch inserted reservation");
 				return null;
 			}
 			return fullReservation;
@@ -309,41 +312,70 @@ export class ReservationService extends Service {
 	 * Inserts a reservation after checking availability within a transaction.
 	 */
 	private async insertWithAvailabilityCheck(
-		reservation: table.DBReservation
+		reservation: table.DBReservation,
 	): Promise<Result<table.DBReservation, InsertError>> {
 		try {
 			return ok(
 				await db.transaction(async (tx) => {
+					await tx
+						.delete(table.reservation)
+						.where(lt(table.reservation.expiresAt, new Date()));
+
+					const reservationKind = await tx
+						.select({ duration: table.kind.duration })
+						.from(table.kind)
+						.where(eq(table.kind.id, reservation.kindID))
+						.get();
+
+					if (!reservationKind) {
+						throw new Error("INVALID_DATA");
+					}
+
 					const existing = await tx
-						.select({ count: count() })
+						.select({ hour: table.reservation.hour, duration: table.kind.duration })
 						.from(table.reservation)
+						.innerJoin(table.kind, eq(table.reservation.kindID, table.kind.id))
 						.where(
 							and(
 								eq(table.reservation.date, reservation.date),
-								eq(table.reservation.hour, reservation.hour),
 								eq(table.reservation.staffID, reservation.staffID),
-								gt(table.reservation.expiresAt, new Date())
-							)
+								gt(table.reservation.expiresAt, new Date()),
+							),
 						);
 
-					if (existing[0].count > 0) {
-						throw new Error('CONFLICT');
+					const conflict = hasReservationConflict(
+						{
+							start: parseTime(reservation.hour),
+							duration: minutesToTime(reservationKind.duration),
+						},
+						existing.map((entry) => ({
+							start: parseTime(entry.hour),
+							duration: minutesToTime(entry.duration),
+						})),
+					);
+
+					if (conflict) {
+						throw new Error("CONFLICT");
 					}
 
-					// Insert reservation
 					const result = await tx
 						.insert(table.reservation)
 						.values(reservation)
 						.returning();
 					return result[0] ?? result;
-				})
+				}),
 			);
 		} catch (e) {
-			if ((e as Error).message === 'CONFLICT') {
-				return err('conflict');
+			const message = (e as Error).message;
+			if (message === "CONFLICT" || message.includes("UNIQUE constraint failed")) {
+				return err("conflict");
 			}
 
-			return err('server-err');
+			if (message === "INVALID_DATA") {
+				return err("invalid-data");
+			}
+
+			return err("server-err");
 		}
 	}
 

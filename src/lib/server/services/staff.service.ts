@@ -1,9 +1,9 @@
-import { db } from '$lib/server/db';
-import * as table from '$lib/server/db/schema';
-import { eq } from 'drizzle-orm';
-import { logger } from '../logger';
-import type { Staff } from '@types';
-import { Service } from './service';
+import { db } from "$lib/server/db";
+import * as table from "$lib/server/db/schema";
+import { eq } from "drizzle-orm";
+import { logger } from "../logger";
+import type { Staff } from "@types";
+import { Service } from "./service";
 
 export class StaffService extends Service {
 	async getByUserID(userID: string) {
@@ -21,7 +21,7 @@ export class StaffService extends Service {
 				.select({
 					name: table.user.name,
 					id: table.staff.userID,
-					avatar: table.staff.avatar
+					avatar: table.staff.avatar,
 				})
 				.from(table.staff)
 				.innerJoin(table.user, eq(table.user.id, table.staff.userID))
