@@ -24,7 +24,7 @@
     },
   });
 
-  const isStaffActive = $derived(data.user.data.isActive ?? false);
+  const isStaffActive = $derived(data.user.staff.isActive ?? false);
   let staffSwitchChecked = $derived(isStaffActive);
   let confirmDialogOpen = $state(false);
   let pendingActive = $state(false);
@@ -102,7 +102,7 @@
           Configura gli orari in cui accetti prenotazioni.
         </p>
       </div>
-      <ScheduleSection schedule={data.schedule} staffID={data.user.data.id} />
+      <ScheduleSection schedule={data.schedule} staffID={data.user.account.id} />
     </section>
 
     <section>
@@ -127,7 +127,7 @@
       <form action="?/toggleStaff" method="POST" use:enhance bind:this={staffForm}>
         <Card.Root>
           <Card.Content class="flex items-center justify-between">
-            <input type="hidden" value={data.user.data.id} name="id" />
+            <input type="hidden" value={data.user.account.id} name="id" />
             <input type="hidden" name="active" value={pendingActive ? "true" : "false"} />
             <span class="typo-label">Profilo visibile</span>
             <Switch

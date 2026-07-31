@@ -1,4 +1,4 @@
-import type { ShutdownPeriod } from "@domain";
+import type { ShutdownDTO } from "$lib/dto";
 import { parseDate } from "@internationalized/date";
 import { describe, it, expect } from "vitest";
 
@@ -10,14 +10,14 @@ describe("isDateUnavailable", () => {
 
   it("should return false when there are no shutdown periods", () => {
     const date = parseDate("2024-08-15");
-    const shutdowns: ShutdownPeriod[] = [];
+    const shutdowns: ShutdownDTO[] = [];
 
     expect(checkShutdown(date, shutdowns, staffID1)).toBe(false);
   });
 
   it("should return false when date is before the shutdown period", () => {
     const date = parseDate("2024-07-15");
-    const shutdowns: ShutdownPeriod[] = [
+    const shutdowns: ShutdownDTO[] = [
       { id: "1", staffID: staffID1, start: "2024-08-01", end: "2024-08-05" },
     ];
 
@@ -26,7 +26,7 @@ describe("isDateUnavailable", () => {
 
   it("should return false when date is after the shutdown period", () => {
     const date = parseDate("2024-08-20");
-    const shutdowns: ShutdownPeriod[] = [
+    const shutdowns: ShutdownDTO[] = [
       { id: "1", staffID: staffID1, start: "2024-08-01", end: "2024-08-05" },
     ];
 
@@ -35,7 +35,7 @@ describe("isDateUnavailable", () => {
 
   it("should return true when date is on the first day of shutdown period", () => {
     const date = parseDate("2024-08-01");
-    const shutdowns: ShutdownPeriod[] = [
+    const shutdowns: ShutdownDTO[] = [
       { id: "1", staffID: staffID1, start: "2024-08-01", end: "2024-08-05" },
     ];
 
@@ -44,7 +44,7 @@ describe("isDateUnavailable", () => {
 
   it("should return true when date is on the last day of shutdown period", () => {
     const date = parseDate("2024-08-05");
-    const shutdowns: ShutdownPeriod[] = [
+    const shutdowns: ShutdownDTO[] = [
       { id: "1", staffID: staffID1, start: "2024-08-01", end: "2024-08-05" },
     ];
 
@@ -53,7 +53,7 @@ describe("isDateUnavailable", () => {
 
   it("should return true when date is in the middle of shutdown period", () => {
     const date = parseDate("2024-08-03");
-    const shutdowns: ShutdownPeriod[] = [
+    const shutdowns: ShutdownDTO[] = [
       { id: "1", staffID: staffID1, start: "2024-08-01", end: "2024-08-05" },
     ];
 
@@ -62,7 +62,7 @@ describe("isDateUnavailable", () => {
 
   it("should return false when checking different staff member shutdown", () => {
     const date = parseDate("2024-08-03");
-    const shutdowns: ShutdownPeriod[] = [
+    const shutdowns: ShutdownDTO[] = [
       { id: "1", staffID: staffID1, start: "2024-08-01", end: "2024-08-05" },
     ];
 
@@ -71,7 +71,7 @@ describe("isDateUnavailable", () => {
 
   it("should handle multiple shutdown periods for the same staff and find matching period", () => {
     const date = parseDate("2024-09-03");
-    const shutdowns: ShutdownPeriod[] = [
+    const shutdowns: ShutdownDTO[] = [
       { id: "1", staffID: staffID1, start: "2024-07-01", end: "2024-07-05" },
       { id: "2", staffID: staffID1, start: "2024-08-10", end: "2024-08-15" },
       { id: "3", staffID: staffID1, start: "2024-09-01", end: "2024-09-05" },
@@ -82,7 +82,7 @@ describe("isDateUnavailable", () => {
 
   it("should check all shutdown periods when date is not in first period", () => {
     const date = parseDate("2024-07-03");
-    const shutdowns: ShutdownPeriod[] = [
+    const shutdowns: ShutdownDTO[] = [
       { id: "1", staffID: staffID1, start: "2024-09-01", end: "2024-09-05" },
       { id: "2", staffID: staffID1, start: "2024-07-01", end: "2024-07-05" },
     ];
@@ -92,7 +92,7 @@ describe("isDateUnavailable", () => {
 
   it("should handle unordered shutdown periods correctly", () => {
     const date = parseDate("2024-06-15");
-    const shutdowns: ShutdownPeriod[] = [
+    const shutdowns: ShutdownDTO[] = [
       { id: "1", staffID: staffID1, start: "2024-08-01", end: "2024-08-05" },
       { id: "2", staffID: staffID1, start: "2024-06-10", end: "2024-06-20" },
       { id: "3", staffID: staffID1, start: "2024-10-01", end: "2024-10-05" },
@@ -103,7 +103,7 @@ describe("isDateUnavailable", () => {
 
   it("should return false when date falls between multiple shutdown periods", () => {
     const date = parseDate("2024-07-15");
-    const shutdowns: ShutdownPeriod[] = [
+    const shutdowns: ShutdownDTO[] = [
       { id: "1", staffID: staffID1, start: "2024-07-01", end: "2024-07-05" },
       { id: "2", staffID: staffID1, start: "2024-07-20", end: "2024-07-25" },
       { id: "3", staffID: staffID1, start: "2024-08-01", end: "2024-08-05" },
@@ -114,7 +114,7 @@ describe("isDateUnavailable", () => {
 
   it("should handle mixed staff shutdowns and only check the correct staff", () => {
     const date = parseDate("2024-08-03");
-    const shutdowns: ShutdownPeriod[] = [
+    const shutdowns: ShutdownDTO[] = [
       { id: "1", staffID: staffID1, start: "2024-07-01", end: "2024-07-05" },
       { id: "2", staffID: staffID2, start: "2024-08-01", end: "2024-08-05" },
       { id: "3", staffID: staffID1, start: "2024-09-01", end: "2024-09-05" },
@@ -126,7 +126,7 @@ describe("isDateUnavailable", () => {
 
   it("should handle single day shutdown period", () => {
     const date = parseDate("2024-08-15");
-    const shutdowns: ShutdownPeriod[] = [
+    const shutdowns: ShutdownDTO[] = [
       { id: "1", staffID: staffID1, start: "2024-08-15", end: "2024-08-15" },
     ];
 
@@ -137,7 +137,7 @@ describe("isDateUnavailable", () => {
     const testDate1 = parseDate("2024-08-15");
     const testDate2 = parseDate("2024-09-15");
     const testDate3 = parseDate("2024-10-15");
-    const shutdowns: ShutdownPeriod[] = [
+    const shutdowns: ShutdownDTO[] = [
       { id: "1", staffID: staffID1, start: "2024-08-01", end: "2024-10-31" },
     ];
 
@@ -148,7 +148,7 @@ describe("isDateUnavailable", () => {
 
   it("should return false for date one day before shutdown starts", () => {
     const date = parseDate("2024-07-31");
-    const shutdowns: ShutdownPeriod[] = [
+    const shutdowns: ShutdownDTO[] = [
       { id: "1", staffID: staffID1, start: "2024-08-01", end: "2024-08-05" },
     ];
 
@@ -157,7 +157,7 @@ describe("isDateUnavailable", () => {
 
   it("should return false for date one day after shutdown ends", () => {
     const date = parseDate("2024-08-06");
-    const shutdowns: ShutdownPeriod[] = [
+    const shutdowns: ShutdownDTO[] = [
       { id: "1", staffID: staffID1, start: "2024-08-01", end: "2024-08-05" },
     ];
 

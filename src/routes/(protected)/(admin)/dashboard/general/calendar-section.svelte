@@ -29,7 +29,7 @@
     adding = true;
     formData.append("start", value.start.toString());
     formData.append("end", value.end.toString());
-    formData.append("id", data.user.data.id);
+    formData.append("id", data.user.account.id);
 
     return async ({ result }) => {
       if (result.type === "success") {
@@ -83,7 +83,7 @@
     {#if shutdown && shutdown.length > 0}
       {#each shutdown as p (p.id)}
         <div
-          class="group hover:bg-muted/50 flex items-center justify-between rounded-md border px-4 py-3 transition-colors"
+          class="group border-border flex items-center justify-between border px-4 py-3 transition-colors rounded-xl hover:bg-gray-4/80 bg-gray-3"
         >
           <span class="typo-label">{formatDateRange(p.start, p.end)}</span>
           <div class="opacity-0 transition-opacity group-hover:opacity-100">

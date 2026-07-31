@@ -34,12 +34,14 @@ describe("SessionService", () => {
       }),
     ).not.toBeNull();
 
-    expect(await service.getByID("session-1")).toMatchObject({
+    const session = await service.getByID("session-1");
+    expect(session.isOk() && session.value).toMatchObject({
       id: "session-1",
       userID: "user-1",
       expiresAt,
     });
-    expect(await service.getByID("missing-session")).toBeUndefined();
+    const missing = await service.getByID("missing-session");
+    expect(missing.isErr() && missing.error).toEqual({ type: "not-found" });
   });
 
   it("deletes one session without affecting another", async () => {
@@ -48,8 +50,8 @@ describe("SessionService", () => {
     await service.insert({ id: "session-2", userID: "user-1", expiresAt });
 
     expect(await service.delete("session-1")).not.toBeNull();
-    expect(await service.getByID("session-1")).toBeUndefined();
-    expect(await service.getByID("session-2")).toBeDefined();
+    expect((await service.getByID("session-1")).isErr()).toBe(true);
+    expect((await service.getByID("session-2")).isOk()).toBe(true);
   });
 
   it("deletes only sessions belonging to the selected user", async () => {
@@ -59,9 +61,32 @@ describe("SessionService", () => {
     await service.insert({ id: "user-2-a", userID: "user-2", expiresAt });
 
     expect(await service.deleteAllByUserID("user-1")).not.toBeNull();
-    expect(await service.getByID("user-1-a")).toBeUndefined();
-    expect(await service.getByID("user-1-b")).toBeUndefined();
-    expect(await service.getByID("user-2-a")).toBeDefined();
+    expect((await service.getByID("user-1-a")).isErr()).toBe(true);
+    expect((await service.getByID("user-1-b")).isErr()).toBe(true);
+    expect((await service.getByID("user-2-a")).isOk()).toBe(true);
+  });
+
+  it("updates a password and revokes every session except the current one", async () => {
+    const expiresAt = new Date("2099-06-15T12:00:00.000Z");
+    await service.insert({ id: "current", userID: "user-1", expiresAt });
+    await service.insert({ id: "other", userID: "user-1", expiresAt });
+    await service.insert({ id: "unrelated", userID: "user-2", expiresAt });
+
+    expect(
+      await service.updatePasswordAndRevokeOtherSessions("user-1", "new-hash", "current"),
+    ).toMatchObject({ id: "user-1", passwordHash: "new-hash" });
+    expect((await service.getByID("current")).isOk()).toBe(true);
+    expect((await service.getByID("other")).isErr()).toBe(true);
+    expect((await service.getByID("unrelated")).isOk()).toBe(true);
+  });
+
+  it("distinguishes missing sessions from storage failures", async () => {
+    const missing = await service.getByID("missing-session");
+    expect(missing.isErr() && missing.error).toEqual({ type: "not-found" });
+
+    await testDatabase.cleanup();
+    const unavailable = await service.getByID("session-1");
+    expect(unavailable.isErr() && unavailable.error).toEqual({ type: "storage-error" });
   });
 
   it("returns null when foreign-key validation rejects a session", async () => {

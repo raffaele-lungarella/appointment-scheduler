@@ -17,8 +17,8 @@
   import { Switch } from "$lib/components/ui/switch";
   import { Textarea } from "$lib/components/ui/textarea";
   import * as Tooltip from "$lib/components/ui/tooltip";
-  import type { Kind } from "@domain";
-  import { kindSchema, updateKindSchema } from "@schema";
+  import type { OfferingDTO } from "$lib/dto";
+  import { offeringSchema, updateOfferingSchema } from "@schema";
   import { untrack } from "svelte";
   import { toast } from "svelte-sonner";
   import { superForm } from "sveltekit-superforms";
@@ -27,17 +27,17 @@
   import { getDataContext } from "./context";
 
   const context = getDataContext();
-  const kinds = $derived(context.data.kinds);
-  const addKindFormData = $derived(context.data.addKindForm);
-  const updateKindFormData = $derived(context.data.updateKindForm);
+  const offerings = $derived(context.data.offerings);
+  const addOfferingFormData = $derived(context.data.addOfferingForm);
+  const updateOfferingFormData = $derived(context.data.updateOfferingForm);
 
   let addDialogOpen = $state(false);
   let editDialogOpen = $state(false);
 
   const addForm = superForm(
-    untrack(() => addKindFormData),
+    untrack(() => addOfferingFormData),
     {
-      validators: zodClient(kindSchema),
+      validators: zodClient(offeringSchema),
       onResult({ result }) {
         if (result.type === "success") {
           addDialogOpen = false;
@@ -51,9 +51,9 @@
   const { form: addData, enhance: addEnhance, delayed: addDelayed } = addForm;
 
   const editForm = superForm(
-    untrack(() => updateKindFormData),
+    untrack(() => updateOfferingFormData),
     {
-      validators: zodClient(updateKindSchema),
+      validators: zodClient(updateOfferingSchema),
       onResult({ result }) {
         if (result.type === "success") {
           editDialogOpen = false;
@@ -66,20 +66,20 @@
   );
   const { form: editData, enhance: editEnhance, delayed: editDelayed } = editForm;
 
-  const openEdit = (kind: Kind) => {
+  const openEdit = (offering: OfferingDTO) => {
     $editData = {
-      id: kind.id,
-      name: kind.name,
-      description: kind.description ?? "",
-      duration: kind.duration,
-      price: kind.price,
-      active: kind.active,
+      id: offering.id,
+      name: offering.name,
+      description: offering.description ?? "",
+      duration: offering.duration,
+      price: offering.price,
+      active: offering.active,
     };
     editDialogOpen = true;
   };
 </script>
 
-{#if kinds.length === 0}
+{#if offerings.length === 0}
   <Alert.Root variant="destructive" class="mb-4">
     <CircleAlert class="size-4" />
     <Alert.Title>Nessun servizio configurato</Alert.Title>
@@ -91,7 +91,7 @@
 {/if}
 
 <div class="mb-4 flex flex-col gap-1">
-  {#each kinds as kind (kind.id)}
+  {#each offerings as offering (offering.id)}
     <div
       class="group hover:bg-gray-4/80 bg-gray-3 flex items-center justify-between rounded-xl border px-4 py-3 transition-colors border-border"
     >
@@ -102,25 +102,25 @@
               {#snippet child({ props })}
                 <span
                   {...props}
-                  class={["size-2 rounded-full", kind.active ? "bg-success" : "bg-gray-400"]}
+                  class={["size-2 rounded-full", offering.active ? "bg-success" : "bg-gray-400"]}
                 ></span>
               {/snippet}
             </Tooltip.Trigger>
             <Tooltip.Content>
-              {kind.active ? "Disponibile" : "Non disponibile"}
+              {offering.active ? "Disponibile" : "Non disponibile"}
             </Tooltip.Content>
           </Tooltip.Root>
         </Tooltip.Provider>
-        <span class="typo-label">{kind.name}</span>
+        <span class="typo-label">{offering.name}</span>
       </div>
 
       <div class="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-        <Button size="icon" variant="ghost" class="size-8" onclick={() => openEdit(kind)}>
+        <Button size="icon" variant="ghost" class="size-8" onclick={() => openEdit(offering)}>
           <Pencil class="size-4" />
         </Button>
 
         <form
-          action="?/deleteKind"
+          action="?/deleteOffering"
           method="post"
           use:enhance={() => {
             return async ({ result, update }) => {
@@ -133,7 +133,7 @@
             };
           }}
         >
-          <input type="hidden" name="id" value={kind.id} />
+          <input type="hidden" name="id" value={offering.id} />
           <Button
             size="icon"
             variant="ghost"
@@ -159,11 +159,11 @@
     <Dialog.Header>
       <Dialog.Title>Aggiungi servizio</Dialog.Title>
     </Dialog.Header>
-    <form action="?/addKind" method="post" class="flex flex-col gap-4 pt-2" use:addEnhance>
+    <form action="?/addOffering" method="post" class="flex flex-col gap-4 pt-2" use:addEnhance>
       <Form.Field form={addForm} name="name">
         <Form.Control>
           {#snippet children({ props })}
-            <Form.Label>Nome*</Form.Label>
+            <Form.Label required>Nome</Form.Label>
             <Input {...props} bind:value={$addData.name} placeholder="Taglio di capelli" />
           {/snippet}
         </Form.Control>
@@ -184,7 +184,7 @@
         <Form.Field form={addForm} name="duration">
           <Form.Control>
             {#snippet children({ props })}
-              <Form.Label>Durata*</Form.Label>
+              <Form.Label required>Durata</Form.Label>
               <InputGroup.Root>
                 <InputGroup.Input
                   {...props}
@@ -204,7 +204,7 @@
         <Form.Field form={addForm} name="price">
           <Form.Control>
             {#snippet children({ props })}
-              <Form.Label>Prezzo*</Form.Label>
+              <Form.Label required>Prezzo</Form.Label>
               <InputGroup.Root>
                 <InputGroup.Addon align="inline-start">€</InputGroup.Addon>
                 <InputGroup.Input
@@ -262,13 +262,13 @@
     <Dialog.Header>
       <Dialog.Title>Modifica servizio</Dialog.Title>
     </Dialog.Header>
-    <form action="?/updateKind" method="post" class="flex flex-col gap-4 pt-2" use:editEnhance>
+    <form action="?/updateOffering" method="post" class="flex flex-col gap-4 pt-2" use:editEnhance>
       <input type="hidden" name="id" value={$editData.id} />
 
       <Form.Field form={editForm} name="name">
         <Form.Control>
           {#snippet children({ props })}
-            <Form.Label>Nome*</Form.Label>
+            <Form.Label required>Nome</Form.Label>
             <Input {...props} bind:value={$editData.name} />
           {/snippet}
         </Form.Control>
@@ -289,7 +289,7 @@
         <Form.Field form={editForm} name="duration">
           <Form.Control>
             {#snippet children({ props })}
-              <Form.Label>Durata*</Form.Label>
+              <Form.Label required>Durata</Form.Label>
               <InputGroup.Root>
                 <InputGroup.Input
                   {...props}
@@ -308,7 +308,7 @@
         <Form.Field form={editForm} name="price">
           <Form.Control>
             {#snippet children({ props })}
-              <Form.Label>Prezzo*</Form.Label>
+              <Form.Label required>Prezzo</Form.Label>
               <InputGroup.Root>
                 <InputGroup.Addon align="inline-start">€</InputGroup.Addon>
                 <InputGroup.Input

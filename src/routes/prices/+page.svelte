@@ -5,13 +5,12 @@
   import * as Card from "$lib/components/ui/card";
   import * as Separator from "$lib/components/ui/separator";
   import { Day } from "$lib/enums/days";
-  import type { DBSchedule } from "$lib/server/db/schema";
   import { formatTime } from "$lib/utils";
   import { Time } from "@internationalized/date";
 
   import type { PageData } from "./$types";
 
-  const { data }: { data: PageData & { schedule: DBSchedule[] | null } } = $props();
+  const { data }: { data: PageData } = $props();
 
   const days = Object.keys(Day).filter((el) => !isNaN(Number(el)));
   const dayNames: Record<string, string> = {
@@ -35,8 +34,8 @@
   const staffMembers = $derived(data.staff ?? []);
   const selectedMember = $derived(staffMembers.find((member) => member.id === selectedStaff));
   const selectedServices = $derived(
-    (data.kinds ?? [])
-      .filter((kind) => kind.staffID === selectedStaff)
+    (data.offerings ?? [])
+      .filter((offering) => offering.staffID === selectedStaff)
       .sort((a, b) => a.price - b.price),
   );
   const selectedSchedules = $derived(
@@ -61,8 +60,8 @@
 
 <div class="mx-auto w-full max-w-2xl">
   <PageHeader
-    title="Servizi"
-    description="Consulta i servizi e gli orari disponibili dello staff"
+    title="Catalogo"
+    description="Consulta i servizi e gli orari disponibili del personale"
   />
 
   <div class="space-y-8">
@@ -73,32 +72,35 @@
         <Card.Root>
           <Card.Content>
             <div class="divide-border divide-y">
-              {#each selectedServices as kind (kind.id)}
+              {#each selectedServices as offering (offering.id)}
                 <article
                   class="grid grid-cols-[minmax(0,1fr)_auto] gap-4 py-5 first:pt-0 last:pb-0"
                 >
                   <div class="min-w-0">
                     <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                      <h3>{kind.name}</h3>
+                      <h3>{offering.name}</h3>
                       <Separator.Root orientation="vertical" class="h-3" />
-                      <Duration amount={kind.duration} class="text-muted-foreground font-mono" />
+                      <Duration
+                        amount={offering.duration}
+                        class="text-muted-foreground font-mono"
+                      />
                     </div>
-                    {#if kind.description}
+                    {#if offering.description}
                       <p class="text-muted-foreground mt-2 max-w-prose typo-body-sm">
-                        {kind.description}
+                        {offering.description}
                       </p>
                     {/if}
                   </div>
 
                   <p class="pt-1 typo-subtitle">
-                    € {kind.price}
+                    € {offering.price}
                   </p>
                 </article>
               {:else}
                 <div
                   class="border-border bg-card rounded-2xl border p-6 text-center text-muted-foreground"
                 >
-                  Nessun servizio disponibile per questo membro dello staff.
+                  Nessun servizio disponibile.
                 </div>
               {/each}
             </div>
@@ -146,7 +148,7 @@
       {:else}
         <Card.Root class="rounded-2xl">
           <Card.Content class="text-muted-foreground py-10 text-center">
-            Nessun membro dello staff disponibile.
+            Nessun personale disponibile.
           </Card.Content>
         </Card.Root>
       {/if}

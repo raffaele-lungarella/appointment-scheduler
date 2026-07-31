@@ -1,4 +1,6 @@
-import type { ReservedSlot, ScheduleUI, Slot } from "@domain";
+import { createMinuteOfDay, type MinuteOfDay } from "$lib/domain/minute-of-day";
+import type { ReservedSlotDTO } from "$lib/dto";
+import type { ScheduleUI } from "$lib/shared";
 import {
   type CalendarDate,
   getDayOfWeek,
@@ -9,13 +11,20 @@ import {
   type DateValue,
 } from "@internationalized/date";
 
+export type Slot = {
+  startMinute: MinuteOfDay;
+  available: boolean;
+  invalid: boolean;
+  past: boolean;
+};
+
 export const SlotDuration = new Time(0, 15);
 
 export const getSlots = (
   date: CalendarDate,
-  reservations: ReservedSlot[],
+  reservations: ReservedSlotDTO[],
   schedule: ScheduleUI,
-  kind?: Time,
+  offering?: Time,
 ) => {
   let slots = generateSlots(date, schedule);
 
@@ -25,12 +34,13 @@ export const getSlots = (
   // slots in the past
   if (isToday(date, getLocalTimeZone())) {
     const n = now(getLocalTimeZone());
-    slots = slots.map((slot) => ({ ...slot, past: slot.start.compare(n) < 0 }));
+    const currentMinute = createMinuteOfDay(n.hour * 60 + n.minute);
+    slots = slots.map((slot) => ({ ...slot, past: slot.startMinute < currentMinute }));
   }
 
   // slots with not enough time
-  if (kind) {
-    slots = invalid(slots, kind);
+  if (offering) {
+    slots = invalid(slots, offering);
   }
 
   return sortSlots(slots);
@@ -70,8 +80,7 @@ function slotsWithoutGaps(slots: Slot[]) {
     if (!next) {
       continue;
     }
-    const diffMinutes =
-      (next.start.hour - current.start.hour) * 60 + (next.start.minute - current.start.minute);
+    const diffMinutes = next.startMinute - current.startMinute;
 
     if (diffMinutes > SlotDuration.hour * 60 + SlotDuration.minute) {
       return false;
@@ -80,12 +89,12 @@ function slotsWithoutGaps(slots: Slot[]) {
   return true;
 }
 
-function isAvailable(slot: Slot, reservations: ReservedSlot[]): boolean {
+function isAvailable(slot: Slot, reservations: ReservedSlotDTO[]): boolean {
   for (const r of reservations) {
-    const startInterval = r.start;
-    const endInterval = r.start.add({ hours: r.duration.hour, minutes: r.duration.minute });
+    const durationMinutes = r.duration.hour * 60 + r.duration.minute;
+    const endMinute = r.startMinute + durationMinutes;
 
-    if (slot.start.compare(startInterval) >= 0 && slot.start.compare(endInterval) < 0) {
+    if (slot.startMinute >= r.startMinute && slot.startMinute < endMinute) {
       return false;
     }
   }
@@ -93,7 +102,7 @@ function isAvailable(slot: Slot, reservations: ReservedSlot[]): boolean {
   return true;
 }
 
-function reserved(slots: Slot[], reservations: ReservedSlot[]): Slot[] {
+function reserved(slots: Slot[], reservations: ReservedSlotDTO[]): Slot[] {
   return slots.map((s) => ({ ...s, available: isAvailable(s, reservations) }));
 }
 
@@ -119,7 +128,12 @@ export function generateSlotsFromInterval(start: Time, end: Time): Slot[] {
   let current = start;
 
   while (current.compare(end) < 0) {
-    slots.push({ start: current, available: true, invalid: false, past: false });
+    slots.push({
+      startMinute: createMinuteOfDay(current.hour * 60 + current.minute),
+      available: true,
+      invalid: false,
+      past: false,
+    });
     current = current.add({ hours: SlotDuration.hour, minutes: SlotDuration.minute });
   }
 
@@ -128,6 +142,6 @@ export function generateSlotsFromInterval(start: Time, end: Time): Slot[] {
 
 function sortSlots(slots: Slot[]): Slot[] {
   return slots.sort((a, b) => {
-    return a.start.compare(b.start);
+    return a.startMinute - b.startMinute;
   });
 }

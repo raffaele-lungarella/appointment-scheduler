@@ -5,7 +5,6 @@
   import * as Alert from "$lib/components/ui/alert";
   import Button from "$lib/components/ui/button/button.svelte";
   import * as Form from "$lib/components/ui/form";
-  import { BARBER_SHOP_DETAILS } from "$lib/constants";
   import { changePasswordSchema } from "@schema";
   import { untrack } from "svelte";
   import { superForm } from "sveltekit-superforms";
@@ -34,7 +33,7 @@
       ? "Inserisci e conferma la nuova password del tuo account."
       : data.status === "expired"
         ? "La richiesta di aggiornamento è scaduta. Richiedi un nuovo link per continuare."
-        : `Riprova oppure chiama il numero ${BARBER_SHOP_DETAILS.phone}.`,
+        : "Il link non è valido. Richiedi un nuovo link per continuare.",
   );
 </script>
 

@@ -35,10 +35,10 @@ export async function seedStaff(
   return { id, name, email };
 }
 
-export async function seedKind(
+export async function seedOffering(
   database: Database,
   {
-    id = "kind-1",
+    id = "offering-1",
     staffID = "staff-1",
     name = "Haircut",
     duration = 30,
@@ -53,7 +53,7 @@ export async function seedKind(
     active?: boolean;
   } = {},
 ) {
-  await database.insert(table.kind).values({
+  await database.insert(table.offering).values({
     id,
     staffID,
     name,

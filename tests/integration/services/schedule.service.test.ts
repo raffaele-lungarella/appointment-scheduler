@@ -11,6 +11,11 @@ describe("ScheduleService", () => {
   beforeEach(async () => {
     testDatabase = await createTestDatabase();
     await seedStaff(testDatabase.database);
+    await seedStaff(testDatabase.database, {
+      id: "staff-2",
+      name: "Second Barber",
+      email: "second-barber@example.com",
+    });
     service = new ScheduleService(testDatabase.database);
   });
 
@@ -37,7 +42,7 @@ describe("ScheduleService", () => {
       "staff-1",
     );
 
-    expect(created).toBe(true);
+    expect(created.isOk() && created.value).toEqual({ affectedRows: 2 });
     expect(await service.getAll()).toHaveLength(2);
 
     const replaced = await service.update(
@@ -52,7 +57,7 @@ describe("ScheduleService", () => {
       "staff-1",
     );
 
-    expect(replaced).toBe(true);
+    expect(replaced.isOk() && replaced.value).toEqual({ affectedRows: 3 });
 
     const schedules = await service.getAll();
     expect(schedules).toHaveLength(1);
@@ -69,7 +74,27 @@ describe("ScheduleService", () => {
     expect(schedule).toBeDefined();
     if (!schedule) throw new Error("Expected the replacement schedule to exist");
 
-    expect(await service.delete(schedule.id)).toBe(true);
+    const deleted = await service.delete(schedule.id, "staff-1");
+    expect(deleted.isOk() && deleted.value).toEqual({ affectedRows: 1 });
     expect(await service.getAll()).toEqual([]);
+  });
+
+  it("supports clearing a schedule and scopes deletion to its owner", async () => {
+    const created = await service.update(
+      [{ staffID: "staff-2", day: 1, startHour: 9, endHour: 12 }],
+      "staff-2",
+    );
+    expect(created.isOk() && created.value).toEqual({ affectedRows: 1 });
+    const secondStaffSchedule = (await service.getByStaff("staff-2"))?.[0];
+    if (!secondStaffSchedule) throw new Error("Expected staff-2 schedule");
+
+    const forbiddenDelete = await service.delete(secondStaffSchedule.id, "staff-1");
+    expect(forbiddenDelete.isErr() && forbiddenDelete.error.type).toBe("not-found");
+    expect(await service.getByStaff("staff-2")).toHaveLength(1);
+    const cleared = await service.update([], "staff-2");
+    expect(cleared.isOk() && cleared.value).toEqual({ affectedRows: 1 });
+    expect(await service.getByStaff("staff-2")).toEqual([]);
+    const missingDelete = await service.delete(999_999, "staff-1");
+    expect(missingDelete.isErr() && missingDelete.error.type).toBe("not-found");
   });
 });

@@ -4,25 +4,23 @@ import { emailSchema, passwordSchema } from "$lib/modules/zod-schemas";
 import type { Database } from "$lib/server/db/client";
 import { getProductionDatabase } from "$lib/server/db/production";
 import * as table from "$lib/server/db/schema";
-import type { DBUser } from "$lib/server/db/schema";
-import type { User } from "@domain";
+import type { UserRow } from "$lib/server/db/schema";
+import type { User } from "$lib/server/domain";
+import { toUserDomain } from "$lib/server/mappers/user.mapper";
 import { encodeBase32LowerCase } from "@oslojs/encoding";
-import { StaffService } from "@service/staff.service";
 import { hash } from "argon2";
 import { and, count, eq, isNotNull, lt } from "drizzle-orm";
 
 import { createLogger } from "../logger";
 import { Service } from "./service";
+import type { ServiceResult } from "./service-result";
 
 type InsertError = "already-existing" | "invalid-email" | "invalid-pass" | "generic";
 
 const logger = createLogger("UserService");
 
 export class UserService extends Service {
-  constructor(
-    private readonly database: Database = getProductionDatabase(),
-    private readonly staffService: StaffService = new StaffService(database),
-  ) {
+  constructor(private readonly database: Database = getProductionDatabase()) {
     super();
   }
 
@@ -31,7 +29,7 @@ export class UserService extends Service {
     password: string;
     name: string;
     phoneNumber: string;
-  }): Promise<Result<DBUser, InsertError>> {
+  }): Promise<Result<UserRow, InsertError>> {
     try {
       const email = data.email.toLowerCase().trim();
 
@@ -45,9 +43,12 @@ export class UserService extends Service {
         return err("invalid-pass");
       }
 
-      const isPresent = await this.getByEmail(validEmail.data);
-      if (isPresent) {
+      const existingUser = await this.getByEmail(validEmail.data);
+      if (existingUser.isOk()) {
         return err("already-existing");
+      }
+      if (existingUser.error.type === "storage-error") {
+        return err("generic");
       }
 
       const passwordHash = await hash(data.password, {
@@ -79,39 +80,29 @@ export class UserService extends Service {
     }
   }
 
-  async getByEmail(email: string): Promise<User | null> {
+  async getByEmail(
+    email: string,
+  ): Promise<ServiceResult<User, { type: "not-found" } | { type: "storage-error" }>> {
     try {
       const lowercaseEmail = email.toLowerCase().trim();
-      const user = await this.database
+      const result = await this.database
         .select()
         .from(table.user)
+        .leftJoin(table.staff, eq(table.staff.userID, table.user.id))
         .where(eq(table.user.email, lowercaseEmail))
         .get();
 
-      if (!user) {
-        return null;
-      }
-
-      const staff = await this.staffService.getByUserID(user.id);
-
-      if (!staff) {
-        return {
-          role: "user",
-          data: user,
-        };
-      } else {
-        return {
-          role: "staff",
-          data: { ...user, ...staff },
-        };
-      }
+      if (!result) return err({ type: "not-found" });
+      return ok(toUserDomain(result.user, result.staff));
     } catch (e) {
       logger.error({ err: e, email }, "getByEmail failed");
-      return null;
+      return err({ type: "storage-error" });
     }
   }
 
-  async getByID(id: string): Promise<User | null> {
+  async getByID(
+    id: string,
+  ): Promise<ServiceResult<User, { type: "not-found" } | { type: "storage-error" }>> {
     try {
       const result = await this.database
         .select()
@@ -121,23 +112,13 @@ export class UserService extends Service {
         .get();
 
       if (!result) {
-        return null;
+        return err({ type: "not-found" });
       }
 
-      if (!result.staff) {
-        return {
-          role: "user",
-          data: result.user,
-        };
-      } else {
-        return {
-          role: "staff",
-          data: { ...result.user, ...result.staff },
-        };
-      }
-    } catch (err) {
-      logger.error({ err, userId: id }, "getByID failed");
-      return null;
+      return ok(toUserDomain(result.user, result.staff));
+    } catch (error) {
+      logger.error({ err: error, userId: id }, "getByID failed");
+      return err({ type: "storage-error" });
     }
   }
 
@@ -172,7 +153,7 @@ export class UserService extends Service {
     }
   }
 
-  async updateEmail(id: string, _email: string): Promise<Result<DBUser, "server-err">> {
+  async updateEmail(id: string, _email: string): Promise<Result<UserRow, "server-err">> {
     const email = _email.toLowerCase().trim();
     try {
       const updated = await this.database
@@ -217,31 +198,21 @@ export class UserService extends Service {
     }
   }
 
-  async updateInfo(id: string, name?: string, phoneNumber?: string) {
+  async updateInfo(id: string, name: string, phoneNumber: string): Promise<boolean> {
+    const normalizedName = name.trim();
+    const normalizedPhoneNumber = phoneNumber.trim();
+    if (!normalizedName) return false;
+
     try {
-      const updateData: Record<string, string> = {};
-
-      if (name?.trim()) {
-        updateData.name = name;
-      }
-
-      if (phoneNumber?.trim()) {
-        updateData.phoneNumber = phoneNumber;
-      }
-
-      if (Object.keys(updateData).length === 0) {
-        // Nothing to update
-        return;
-      }
-      return await this.database
+      const updated = await this.database
         .update(table.user)
-        .set(updateData)
+        .set({ name: normalizedName, phoneNumber: normalizedPhoneNumber })
         .where(eq(table.user.id, id))
-        .returning()
-        .get();
+        .returning({ id: table.user.id });
+      return updated.length === 1;
     } catch (e) {
       logger.error({ err: e, userId: id }, "updateInfo failed");
-      return null;
+      return false;
     }
   }
 

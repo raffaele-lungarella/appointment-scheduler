@@ -1,11 +1,7 @@
-import type { ShutdownPeriod } from "@domain";
+import type { ShutdownDTO } from "$lib/dto";
 import { parseDate, type DateValue } from "@internationalized/date";
 
-export function checkShutdown(
-  date: DateValue,
-  shutdown: ShutdownPeriod[],
-  staffID: string,
-): boolean {
+export function checkShutdown(date: DateValue, shutdown: ShutdownDTO[], staffID: string): boolean {
   const staffShutdown = shutdown.filter((el) => el.staffID === staffID);
 
   for (const s of staffShutdown) {

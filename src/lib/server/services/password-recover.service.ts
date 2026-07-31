@@ -8,6 +8,7 @@ import { Service } from "./service";
 
 const logger = createLogger("PasswordRecoverService");
 
+/** @deprecated Raw password-recovery tokens are legacy. Use PublicTokenService for new flows. */
 export class PasswordRecoverService extends Service {
   constructor(private readonly database: Database = getProductionDatabase()) {
     super();
@@ -76,8 +77,9 @@ export class PasswordRecoverService extends Service {
       return await this.database
         .delete(table.passwordRecover)
         .where(lt(table.passwordRecover.expiresAt, new Date()));
-    } catch (err) {
-      logger.error({ err }, "deleteAllExpired failed");
+    } catch (e) {
+      logger.error({ err: e }, "deleteAllExpired failed");
+      return null;
     }
   }
 }

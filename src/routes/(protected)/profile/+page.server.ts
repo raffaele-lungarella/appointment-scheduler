@@ -4,7 +4,6 @@ import * as auth from "$lib/server/auth";
 import { logger } from "$lib/server/logger";
 import { EmailService } from "$lib/server/mailer";
 import { getNumber, getString } from "$lib/utils";
-import { EmailVerificationService } from "@service/email-verification.service.js";
 import { PasswordRecoverService } from "@service/password-recover.service.js";
 import { PublicTokenService } from "@service/public-token.service.js";
 import { ReservationService } from "@service/reservation.service.js";
@@ -18,31 +17,13 @@ import { zod4 as zod } from "sveltekit-superforms/adapters";
 
 import type { Actions, PageServerLoad } from "./$types";
 
-export const load: PageServerLoad = async ({ locals, url }) => {
+export const load: PageServerLoad = async ({ locals }) => {
   if (!locals.user) {
     redirect(301, "/login");
   }
 
-  const confirmID = url.searchParams.get("confirm-email-change"); // Coming from an email
-
   const changeEmailForm = await superValidate(zod(profileChangeEmailSchema));
   const changePasswordForm = await superValidate(zod(profileChangePasswordSchema));
-
-  if (confirmID) {
-    const userService = UserService.get();
-    const verified = await EmailVerificationService.get().getByID(confirmID);
-
-    if (verified) {
-      const updatedEmail = await userService.updateEmail(verified.userID, verified.email);
-      return {
-        user: locals.user,
-        title: "Profilo -",
-        updatedEmail,
-        changeEmailForm,
-        changePasswordForm,
-      };
-    }
-  }
 
   return {
     user: locals.user,
@@ -76,23 +57,32 @@ export const actions: Actions = {
     const offsetY = getNumber(data, "offsetY");
     const displayScale = getNumber(data, "displayScale");
 
-    if (!avatarBase64 || !avatarOriginal) return { avatarSuccess: false };
+    if (
+      !avatarBase64 ||
+      !avatarOriginal ||
+      !Number.isFinite(offsetX) ||
+      !Number.isFinite(offsetY) ||
+      !Number.isFinite(displayScale) ||
+      displayScale <= 0
+    ) {
+      return fail(400, { avatarSuccess: false });
+    }
 
     const result = await StaffService.get().updateAvatar(
-      locals.user.data.id,
+      locals.user.account.id,
       avatarBase64,
       avatarOriginal,
       offsetX,
       offsetY,
       displayScale,
     );
-    return { avatarSuccess: !!result };
+    return result ? { avatarSuccess: true } : fail(400, { avatarSuccess: false });
   },
   deleteAvatar: async ({ locals }) => {
     if (!locals.user) return { avatarSuccess: false };
 
-    const result = await StaffService.get().deleteAvatar(locals.user.data.id);
-    return { avatarSuccess: !!result };
+    const result = await StaffService.get().deleteAvatar(locals.user.account.id);
+    return result ? { avatarSuccess: true } : fail(500, { avatarSuccess: false });
   },
   updateInfo: async ({ locals, request, url }) => {
     const userService = UserService.get();
@@ -102,19 +92,20 @@ export const actions: Actions = {
     }
 
     const formData = await request.formData();
-    const phone = getString(formData, "phone");
-    const name = getString(formData, "name");
+    const phone = getString(formData, "phone").trim();
+    const name = getString(formData, "name").trim();
 
     if (!name) {
       return fail(400, { success: false });
     }
 
-    if (locals.user.data.phoneNumber !== phone) {
-      await userService.updatePhoneNumber(locals.user.data.id, phone);
+    if (locals.user.account.phoneNumber === phone && locals.user.account.name === name) {
+      redirect(302, url.pathname);
     }
 
-    if (name && locals.user.data.name !== name) {
-      await userService.updateName(locals.user.data.id, name);
+    const updated = await userService.updateInfo(locals.user.account.id, name, phone);
+    if (!updated) {
+      return fail(500, { success: false });
     }
 
     redirect(302, url.pathname);
@@ -134,16 +125,22 @@ export const actions: Actions = {
     const userService = UserService.get();
     const existingUser = await userService.getByEmail(email);
 
-    if (existingUser && existingUser.data.verifiedEmail) {
+    if (existingUser.isErr() && existingUser.error.type === "storage-error") {
+      return fail(503, { changeEmailForm: form });
+    }
+    if (existingUser.isOk() && existingUser.value.account.verifiedEmail) {
       return setError(form, "email", "Email non disponibile");
     }
 
-    const emailVerification = await EmailVerificationService.get().insert(
-      email,
-      locals.user.data.id,
-    );
+    const tokenService = PublicTokenService.get();
+    const emailChangeToken = await tokenService.issue({
+      purpose: "email_change",
+      userID: locals.user.account.id,
+      pendingEmail: email,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    });
 
-    if (!emailVerification) {
+    if (emailChangeToken.isErr()) {
       return message(
         form,
         { success: false, text: "Impossibile cambiare la mail. Riprova più tardi." },
@@ -152,13 +149,13 @@ export const actions: Actions = {
     }
 
     const sent = await new EmailService().changeEmail({
-      name: locals.user.data.name,
+      name: locals.user.account.name,
       to: email,
-      link: `${BASE_URL.replace(/\/$/, "")}/account/confirm-email-change/${emailVerification.id}`,
+      link: `${BASE_URL.replace(/\/$/, "")}/account/confirm-email-change/${emailChangeToken.value}`,
     });
 
     if (sent.isErr()) {
-      await EmailVerificationService.get().delete(emailVerification.id);
+      await tokenService.revoke(emailChangeToken.value, "email_change");
 
       return message(
         form,
@@ -169,7 +166,7 @@ export const actions: Actions = {
 
     return message(form, {
       success: true,
-      text: "Email inviata. Controlla la tua casella di posta.",
+      text: "Controlla la tua casella di posta.",
     });
   },
   deleteAccount: async (event) => {
@@ -187,15 +184,19 @@ export const actions: Actions = {
     const publicTokenService = PublicTokenService.get();
     const reservationService = ReservationService.get();
 
-    logger.warn("Deleting account of user: " + user.data.email);
+    logger.warn("Deleting account of user: " + user.account.email);
 
     // Delete all related data
-    await sessionService.deleteAllByUserID(user.data.id);
-    await reservationService.deleteAll(user.data.email);
-    await passwordRecoverService.deleteByUserID(user.data.id);
-    await publicTokenService.deleteByUserID(user.data.id);
+    await sessionService.deleteAllByUserID(user.account.id);
+    const deletedReservations = await reservationService.deleteAllByUser(
+      user.account.id,
+      user.account.email,
+    );
+    if (deletedReservations.isErr()) return fail(503);
+    await passwordRecoverService.deleteByUserID(user.account.id);
+    await publicTokenService.deleteByUserID(user.account.id);
 
-    const res = await userService.delete(user.data.id);
+    const res = await userService.delete(user.account.id);
 
     if (res) {
       logger.info("Successfully deleted account of user: " + res.email);
@@ -203,7 +204,7 @@ export const actions: Actions = {
 
       return redirect(302, "/");
     } else {
-      logger.error("Error while deleting account of user: " + user.data.email);
+      logger.error("Error while deleting account of user: " + user.account.email);
       return fail(500);
     }
   },
@@ -221,8 +222,14 @@ export const actions: Actions = {
     }
 
     const { oldPassword, newPassword } = form.data;
+    const serverUser = await UserService.get().getByID(user.account.id);
+    if (serverUser.isErr()) {
+      return fail(serverUser.error.type === "storage-error" ? 503 : 401, {
+        changePasswordForm: form,
+      });
+    }
 
-    const validPassword = await verify(user.data.passwordHash, oldPassword, {});
+    const validPassword = await verify(serverUser.value.account.passwordHash, oldPassword, {});
     if (!validPassword) {
       return message(
         form,
@@ -248,7 +255,11 @@ export const actions: Actions = {
       parallelism: 1,
     });
 
-    const response = await UserService.get().updatePassword(passwordHash, user.data.id);
+    const response = await SessionService.get().updatePasswordAndRevokeOtherSessions(
+      user.account.id,
+      passwordHash,
+      session.id,
+    );
     if (!response) {
       return message(
         form,

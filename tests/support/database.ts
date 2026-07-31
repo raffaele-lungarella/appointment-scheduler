@@ -7,11 +7,14 @@ import { migrate } from "drizzle-orm/libsql/migrator";
 
 export async function createTestDatabase() {
   const directory = await mkdtemp(join(tmpdir(), "barber-shop-test-"));
-  const database = createDatabase(`file:${join(directory, "test.sqlite")}`);
+  const url = `file:${join(directory, "test.sqlite")}`;
+  const database = createDatabase(url);
 
   try {
     await migrate(database, { migrationsFolder: join(process.cwd(), "migrations") });
+    await database.run("PRAGMA journal_mode = WAL");
     await database.run("PRAGMA foreign_keys = ON");
+    await database.run("PRAGMA busy_timeout = 1000");
   } catch (error) {
     database.$client.close();
     await rm(directory, { recursive: true, force: true });
@@ -20,6 +23,12 @@ export async function createTestDatabase() {
 
   return {
     database,
+    async createClient() {
+      const client = createDatabase(url);
+      await client.run("PRAGMA foreign_keys = ON");
+      await client.run("PRAGMA busy_timeout = 100");
+      return client;
+    },
     async cleanup() {
       database.$client.close();
       await rm(directory, { recursive: true, force: true });

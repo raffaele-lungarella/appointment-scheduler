@@ -1,50 +1,47 @@
-import { expired } from "$lib/utils";
+import { PublicTokenService } from "@service/public-token.service";
 import { ReservationService } from "@service/reservation.service";
+import { error, fail } from "@sveltejs/kit";
 
-import type { PageServerLoad } from "./$types";
+import type { Actions, PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async ({ params }) => {
-  // TODO: Harden privacy for public reservation links. The reservation id currently works as a bearer token; consider using a separate confirmation token, limiting displayed details, or expiring public access after the appointment date.
-  const reservationService = ReservationService.get();
-  const reservation = await reservationService.getByID(params.token);
+  const token = await PublicTokenService.get().inspect(params.token, "reservation_confirmation");
 
-  if (!reservation) {
+  if (token.status === "error") return error(503);
+
+  if (token.status !== "valid" || !token.token.reservationID) {
     return {
-      success: false,
+      status: token.status === "expired" ? ("expired" as const) : ("invalid" as const),
       reservation: null,
-      error: "server_error",
     };
   }
 
-  if (reservation.pending) {
-    if (expired(reservation.expiresAt.getTime())) {
-      return {
-        success: false,
-        reservation: null,
-        error: "expired",
-      };
-    }
-
-    const confirmedReservation = await reservationService.updateExpiration(reservation.id);
-
-    if (!confirmedReservation) {
-      return {
-        success: false,
-        reservation: null,
-        error: "server_error",
-      };
-    }
-
-    return {
-      success: true,
-      reservation: confirmedReservation,
-      error: null,
-    };
+  const reservation = await ReservationService.get().getByID(token.token.reservationID);
+  if (reservation.isErr()) {
+    if (reservation.error.type === "storage-error") return error(503);
+    return { status: "invalid" as const, reservation: null };
   }
 
   return {
-    success: true,
-    reservation,
-    error: null,
+    status: reservation.value.pending ? ("ready" as const) : ("confirmed" as const),
+    reservation: reservation.value,
   };
+};
+
+export const actions: Actions = {
+  default: async ({ params }) => {
+    const reservationID = await PublicTokenService.get().confirmReservation(params.token);
+    if (reservationID.isErr()) {
+      if (reservationID.error.type === "storage-error") return error(503);
+      return fail(400, { status: "invalid" as const, reservation: null });
+    }
+
+    const reservation = await ReservationService.get().getByID(reservationID.value);
+    if (reservation.isErr()) {
+      if (reservation.error.type === "storage-error") return error(503);
+      return fail(404, { status: "invalid" as const, reservation: null });
+    }
+
+    return { status: "confirmed" as const, reservation: reservation.value };
+  },
 };

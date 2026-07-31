@@ -1,5 +1,6 @@
 import { insertEmailVerificationSchema } from "$lib/modules/zod-schemas";
-import { db } from "$lib/server/db";
+import type { Database } from "$lib/server/db/client";
+import { getProductionDatabase } from "$lib/server/db/production";
 import * as table from "$lib/server/db/schema";
 import { eq, lt } from "drizzle-orm";
 
@@ -8,7 +9,12 @@ import { Service } from "./service";
 
 const logger = createLogger("EmailVerificationService");
 
+/** @deprecated Raw verification tokens are legacy. Use PublicTokenService for new flows. */
 export class EmailVerificationService extends Service {
+  constructor(private readonly database: Database = getProductionDatabase()) {
+    super();
+  }
+
   async insert(newEmail: string, userID: string) {
     const parsed = insertEmailVerificationSchema.safeParse({
       email: newEmail.toLowerCase().trim(),
@@ -23,7 +29,7 @@ export class EmailVerificationService extends Service {
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 1); // Add one day
 
-      return await db
+      return await this.database
         .insert(table.emailVerification)
         .values({
           id: crypto.randomUUID(),
@@ -41,7 +47,7 @@ export class EmailVerificationService extends Service {
 
   async getByID(id: string) {
     try {
-      return await db
+      return await this.database
         .select()
         .from(table.emailVerification)
         .where(eq(table.emailVerification.id, id))
@@ -54,7 +60,9 @@ export class EmailVerificationService extends Service {
 
   async delete(id: string) {
     try {
-      return await db.delete(table.emailVerification).where(eq(table.emailVerification.id, id));
+      return await this.database
+        .delete(table.emailVerification)
+        .where(eq(table.emailVerification.id, id));
     } catch (e) {
       logger.error({ err: e, tokenId: id }, "delete failed");
       return null;
@@ -63,7 +71,7 @@ export class EmailVerificationService extends Service {
 
   async deleteByUserID(userID: string) {
     try {
-      return await db
+      return await this.database
         .delete(table.emailVerification)
         .where(eq(table.emailVerification.userID, userID));
     } catch (e) {
@@ -74,11 +82,12 @@ export class EmailVerificationService extends Service {
 
   async deleteAllExpired() {
     try {
-      return await db
+      return await this.database
         .delete(table.emailVerification)
         .where(lt(table.emailVerification.expiresAt, new Date()));
-    } catch (err) {
-      logger.error({ err }, "deleteAllExpired failed");
+    } catch (e) {
+      logger.error({ err: e }, "deleteAllExpired failed");
+      return null;
     }
   }
 }

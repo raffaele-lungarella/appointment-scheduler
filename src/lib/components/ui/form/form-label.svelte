@@ -7,8 +7,9 @@
     ref = $bindable(null),
     children,
     class: className,
+    required = false,
     ...restProps
-  }: WithoutChild<FormPrimitive.LabelProps> = $props();
+  }: WithoutChild<FormPrimitive.LabelProps> & { required?: boolean } = $props();
 </script>
 
 <FormPrimitive.Label {...restProps} bind:ref>
@@ -16,9 +17,12 @@
     <Label
       {...props}
       data-slot="form-label"
-      class={cn("data-[fs-error]:text-destructive", className)}
+      class={cn("data-fs-error:text-destructive pl-1", className)}
     >
       {@render children?.()}
+      {#if required}
+        <span class="text-destructive" aria-hidden="true">*</span>
+      {/if}
     </Label>
   {/snippet}
 </FormPrimitive.Label>

@@ -1,38 +1,62 @@
-import { expired } from "$lib/utils";
-import { EmailVerificationService } from "@service/email-verification.service";
-import { UserService } from "@service/user.service";
+import { PublicTokenService } from "@service/public-token.service";
+import { error } from "@sveltejs/kit";
 
-import type { PageServerLoad } from "./$types";
+import type { Actions, PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async ({ locals, params }) => {
-  if (!locals.user) {
+  if (!locals.user || !locals.session) {
     return { status: "unauthorized" as const };
   }
 
-  const verificationService = EmailVerificationService.get();
-  const verification = await verificationService.getByID(params.token);
+  const token = await PublicTokenService.get().inspect(params.token, "email_change");
 
-  if (!verification) {
-    return { status: "invalid" as const };
+  if (token.status === "error") return error(503);
+  if (token.status !== "valid") {
+    return {
+      status:
+        token.status === "expired" || token.status === "consumed"
+          ? ("expired" as const)
+          : ("invalid" as const),
+    };
   }
-
-  if (verification.userID !== locals.user.data.id) {
-    return { status: "forbidden" as const };
-  }
-
-  if (!verification.expiresAt || expired(verification.expiresAt.getTime())) {
-    return { status: "expired" as const };
-  }
-
-  const updatedEmail = await UserService.get().updateEmail(verification.userID, verification.email);
-  if (!updatedEmail.isOk()) {
-    return { status: "error" as const };
-  }
-
-  await verificationService.delete(verification.id);
 
   return {
-    status: "confirmed" as const,
-    email: updatedEmail.value.email,
+    status:
+      token.token.userID === locals.user.account.id ? ("ready" as const) : ("forbidden" as const),
   };
+};
+
+export const actions: Actions = {
+  default: async ({ locals, params }) => {
+    if (!locals.user || !locals.session) {
+      return { status: "unauthorized" as const };
+    }
+
+    const tokenService = PublicTokenService.get();
+    const token = await tokenService.inspect(params.token, "email_change");
+    if (token.status === "error") return error(503);
+    if (token.status !== "valid") {
+      return {
+        status:
+          token.status === "expired" || token.status === "consumed"
+            ? ("expired" as const)
+            : ("invalid" as const),
+      };
+    }
+    if (token.token.userID !== locals.user.account.id) {
+      return { status: "forbidden" as const };
+    }
+
+    const updatedUser = await tokenService.confirmEmailChange(
+      params.token,
+      locals.user.account.id,
+      locals.session.id,
+    );
+    if (updatedUser.isErr()) {
+      if (updatedUser.error.type === "storage-error") return error(503);
+      return { status: "expired" as const };
+    }
+
+    return { status: "confirmed" as const, email: updatedUser.value.email };
+  },
 };

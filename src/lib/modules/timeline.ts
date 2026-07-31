@@ -1,4 +1,4 @@
-import type { Reservation } from "@domain";
+import type { ReservationDTO } from "$lib/dto";
 
 export type TimelineConfig = {
   startMinute: number;
@@ -16,7 +16,7 @@ export type TimelineTick = {
 };
 
 export type TimelineReservationLayout = {
-  reservation: Reservation;
+  reservation: ReservationDTO;
   startMinute: number;
   endMinute: number;
   top: number;
@@ -34,17 +34,6 @@ export const DEFAULT_TIMELINE_CONFIG: TimelineConfig = {
   majorStepMinutes: 60,
   pixelsPerMinute: 1,
 };
-
-export function parseTimeToMinute(value: string): number {
-  const match = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(value);
-  if (!match) throw new Error(`Invalid time: ${value}`);
-
-  const hours = Number(match[1]);
-  const minutes = Number(match[2]);
-  if (hours > 23 || minutes > 59) throw new Error(`Invalid time: ${value}`);
-
-  return hours * 60 + minutes;
-}
 
 export function formatMinute(minute: number): string {
   const clamped = Math.min(Math.max(Math.round(minute), 0), 24 * 60 - 1);
@@ -102,14 +91,17 @@ export function createTimelineTicks(config: TimelineConfig): TimelineTick[] {
 }
 
 export function layoutReservations(
-  reservations: Reservation[],
+  reservations: ReservationDTO[],
   config: TimelineConfig,
 ): TimelineReservationLayout[] {
   const scale = createTimelineScale(config);
   const visible = reservations
-    .map((reservation) => {
-      const startMinute = parseTimeToMinute(reservation.hour);
-      const duration = reservation.kinds.reduce((total, kind) => total + kind.duration, 0);
+    .map<TimelineReservationLayout | null>((reservation) => {
+      const startMinute = reservation.startMinute;
+      const duration = reservation.offerings.reduce(
+        (total, offering) => total + offering.duration,
+        0,
+      );
       const endMinute = startMinute + duration;
       if (duration <= 0 || endMinute <= config.startMinute || startMinute >= config.endMinute) {
         return null;

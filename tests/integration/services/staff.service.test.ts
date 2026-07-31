@@ -26,7 +26,10 @@ describe("StaffService", () => {
   it("lists only active staff", async () => {
     expect(await service.getAll()).toEqual([]);
 
-    expect(await service.toggleActive(true, "staff-1")).toBe(true);
+    const missing = await service.toggleActive(true, "missing-staff");
+    expect(missing.isErr() && missing.error.type).toBe("not-found");
+    const activated = await service.toggleActive(true, "staff-1");
+    expect(activated.isOk() && activated.value).toEqual({ affectedRows: 1 });
 
     expect(await service.getAll()).toEqual([
       {
@@ -45,23 +48,26 @@ describe("StaffService", () => {
     const avatar = "data:image/png;base64,dGVzdA==";
     const original = "data:image/jpeg;base64,b3JpZ2luYWw=";
 
-    expect(await service.updateAvatar("staff-1", avatar, original, 12.5, -4.5, 1.25)).toMatchObject(
-      {
-        avatar,
-        avatarOriginal: original,
-        avatarOffsetX: 12.5,
-        avatarOffsetY: -4.5,
-        avatarDisplayScale: 1.25,
-      },
-    );
+    expect(await service.updateAvatar("staff-1", avatar, original, 12.5, -4.5, 1.25)).toBe(true);
+    expect(await service.getByUserID("staff-1")).toMatchObject({
+      avatar,
+      avatarOriginal: original,
+      avatarOffsetX: 12.5,
+      avatarOffsetY: -4.5,
+      avatarDisplayScale: 1.25,
+    });
 
-    expect(await service.deleteAvatar("staff-1")).toMatchObject({
+    const deleted = await service.deleteAvatar("staff-1");
+    expect(deleted.isOk() && deleted.value).toEqual({ affectedRows: 1 });
+    expect(await service.getByUserID("staff-1")).toMatchObject({
       avatar: null,
       avatarOriginal: null,
       avatarOffsetX: null,
       avatarOffsetY: null,
       avatarDisplayScale: null,
     });
+    const missing = await service.deleteAvatar("missing-staff");
+    expect(missing.isErr() && missing.error.type).toBe("not-found");
   });
 
   it("rejects invalid avatar data without changing the staff row", async () => {
@@ -74,11 +80,23 @@ describe("StaffService", () => {
         0,
         1,
       ),
-    ).toBeNull();
+    ).toBe(false);
 
     expect(await service.getByUserID("staff-1")).toMatchObject({
       avatar: null,
       avatarOriginal: null,
     });
+  });
+
+  it("rejects unsafe avatar sizes and crop geometry", async () => {
+    const avatar = "data:image/png;base64,dGVzdA==";
+    const original = "data:image/jpeg;base64,b3JpZ2luYWw=";
+    const oversizedOriginal = `data:image/jpeg;base64,${"A".repeat(2_000_004)}`;
+
+    expect(await service.updateAvatar("staff-1", avatar, original, Infinity, 0, 1)).toBe(false);
+    expect(await service.updateAvatar("staff-1", avatar, original, 0, 0, 0)).toBe(false);
+    expect(await service.updateAvatar("staff-1", avatar, original, 10_001, 0, 1)).toBe(false);
+    expect(await service.updateAvatar("staff-1", avatar, oversizedOriginal, 0, 0, 1)).toBe(false);
+    expect(await service.updateAvatar("missing-staff", avatar, original, 0, 0, 1)).toBe(false);
   });
 });

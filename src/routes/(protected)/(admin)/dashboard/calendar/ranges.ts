@@ -1,10 +1,9 @@
 import { Day } from "$lib/enums/days";
-import type { DBSchedule, Schedule } from "$lib/server/db/schema";
-import type { ScheduleRange, ScheduleUI } from "@domain";
+import type { ScheduleEntry, ScheduleRange, ScheduleUI } from "$lib/shared";
 import { Time } from "@internationalized/date";
 import { SvelteMap } from "svelte/reactivity";
 
-export function mapToUI(schedule: DBSchedule[], staffID: string): ScheduleUI {
+export function mapToUI(schedule: ScheduleEntry[], staffID: string): ScheduleUI {
   // Group schedules by day
   const grouped = Object.groupBy(
     schedule.filter((el) => el.staffID === staffID),
@@ -35,7 +34,7 @@ export function initializeEmptyMap(): SvelteMap<Day, ScheduleRange[]> {
   return m;
 }
 
-export function mapToDB(scheduleMap: Map<Day, ScheduleRange[]>): Omit<Schedule, "staffID">[] {
+export function mapToDB(scheduleMap: Map<Day, ScheduleRange[]>) {
   const arr = Array.from(scheduleMap.entries()).map(([day, ranges]) => ({
     day,
     schedules: ranges.map(({ start, end, id }) => ({
@@ -47,7 +46,13 @@ export function mapToDB(scheduleMap: Map<Day, ScheduleRange[]>): Omit<Schedule, 
     })),
   }));
 
-  const dbarr: Omit<Schedule, "staffID">[] = [];
+  const dbarr: {
+    day: Day;
+    startHour: number;
+    startMinute: number;
+    endHour: number;
+    endMinute: number;
+  }[] = [];
   arr.forEach((el) => {
     el.schedules.forEach((schedule) => {
       dbarr.push({

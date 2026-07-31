@@ -1,36 +1,35 @@
 import { expired } from "$lib/utils";
+import { PublicTokenService } from "@service/public-token.service";
 import { ReservationService } from "@service/reservation.service";
-import { redirect } from "@sveltejs/kit";
+import { error } from "@sveltejs/kit";
 
 import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async ({ params }) => {
-  // TODO: Harden privacy for public reservation links. The reservation id currently works as a bearer token; consider using a separate confirmation token, limiting displayed details, or expiring public access after the appointment date.
-  const reservation = await ReservationService.get().getByID(params.id);
+  const token = await PublicTokenService.get().inspect(params.id, "reservation_access");
 
-  if (!reservation) {
+  if (token.status !== "valid" || !token.token.reservationID) {
     return {
       success: false,
       reservation: null,
-      error: "server_error",
+      error: token.status === "expired" ? ("expired" as const) : ("invalid" as const),
     };
   }
 
-  if (!reservation.pending) {
-    throw redirect(302, `/book/confirm/${reservation.id}`);
+  const reservation = await ReservationService.get().getByID(token.token.reservationID);
+
+  if (reservation.isErr()) {
+    if (reservation.error.type === "storage-error") return error(503);
+    return { success: false, reservation: null, error: "invalid" as const };
   }
 
-  if (expired(reservation.expiresAt.getTime())) {
-    return {
-      success: false,
-      reservation: null,
-      error: "expired",
-    };
+  if (reservation.value.pending && expired(reservation.value.expiresAt.getTime())) {
+    return { success: false, reservation: null, error: "expired" as const };
   }
 
   return {
     success: true,
-    reservation,
+    reservation: reservation.value,
     error: null,
   };
 };

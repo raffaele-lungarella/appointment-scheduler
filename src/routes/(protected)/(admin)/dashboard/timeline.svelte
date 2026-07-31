@@ -1,5 +1,6 @@
 <script lang="ts">
   import ReservationDetailsSheet from "$lib/components/app/reservation-details-sheet.svelte";
+  import type { ReservationDTO } from "$lib/dto";
   import {
     createTimelineScale,
     createTimelineTicks,
@@ -7,7 +8,6 @@
     formatMinute,
     layoutReservations,
   } from "$lib/modules/timeline";
-  import type { Reservation } from "@domain";
   import { getLocalTimeZone, isToday, today } from "@internationalized/date";
   import type { DateValue } from "@internationalized/date";
   import { onMount } from "svelte";
@@ -18,7 +18,7 @@
     reservations,
     date,
   }: {
-    reservations: Reservation[];
+    reservations: ReservationDTO[];
     date: DateValue;
   } = $props();
 
@@ -79,10 +79,10 @@
     return () => window.clearInterval(interval);
   });
 
-  let selectedReservation: Reservation | null = $state(null);
+  let selectedReservation: ReservationDTO | null = $state(null);
   let detailsOpen = $state(false);
 
-  function showDetails(reservation: Reservation) {
+  function showDetails(reservation: ReservationDTO) {
     selectedReservation = reservation;
     detailsOpen = true;
   }

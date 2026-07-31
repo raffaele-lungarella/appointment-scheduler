@@ -15,7 +15,6 @@ const config = {
     alias: {
       "@service": "src/lib/server/services/*",
       "@schema": "src/lib/modules/zod-schemas.ts",
-      "@domain": "src/lib/domain/index.ts",
     },
   },
 };

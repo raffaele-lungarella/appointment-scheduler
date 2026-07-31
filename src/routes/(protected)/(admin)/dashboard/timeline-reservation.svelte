@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { formatMinute, parseTimeToMinute } from "$lib/modules/timeline";
-  import { formatDuration, formatTime } from "$lib/utils";
-  import type { Reservation } from "@domain";
+  import { formatMinuteOfDay } from "$lib/domain/minute-of-day";
+  import type { ReservationDTO } from "$lib/dto";
+  import { formatMinute } from "$lib/modules/timeline";
+  import { formatDuration } from "$lib/utils";
 
   const {
     reservation,
@@ -15,7 +16,7 @@
     clippedAtEnd,
     onselect,
   }: {
-    reservation: Reservation;
+    reservation: ReservationDTO;
     top: number;
     height: number;
     column: number;
@@ -24,14 +25,14 @@
     timing: "past" | "current" | "upcoming";
     clippedAtStart: boolean;
     clippedAtEnd: boolean;
-    onselect: (reservation: Reservation) => void;
+    onselect: (reservation: ReservationDTO) => void;
   } = $props();
 
   const width = $derived(100 / columnCount);
   const totalDuration = $derived(
-    reservation.kinds.reduce((total, kind) => total + kind.duration, 0),
+    reservation.offerings.reduce((total, offering) => total + offering.duration, 0),
   );
-  const endTime = $derived(formatMinute(parseTimeToMinute(reservation.hour) + totalDuration));
+  const endTime = $derived(formatMinute(reservation.startMinute + totalDuration));
   const durationLabel = $derived(formatDuration(totalDuration));
   const statusLabel = $derived(reservation.pending ? "In attesa" : "Confermata");
 </script>
@@ -49,18 +50,18 @@
   class:rounded-t-none={clippedAtStart}
   class:rounded-b-none={clippedAtEnd}
   data-timing={timing}
-  aria-label="Apri i dettagli della prenotazione di {reservation.name}, dalle {formatTime(
-    reservation.hour,
+  aria-label="Apri i dettagli della prenotazione di {reservation.name}, dalle {formatMinuteOfDay(
+    reservation.startMinute,
   )} alle {endTime}, durata {durationLabel}, {timing === 'past' ? 'conclusa' : ''}, {statusLabel}"
 >
   <span class="shrink-0 typo-label tabular-nums text-xs">
-    {formatTime(reservation.hour)} - {endTime}
+    {formatMinuteOfDay(reservation.startMinute)} - {endTime}
   </span>
 
   <span class="min-w-0 truncate typo-body-sm">
     <b>{reservation.name}</b>
     <span class="text-muted-foreground">
-      · {reservation.kinds.map((kind) => kind.name).join(", ")}</span
+      · {reservation.offerings.map((offering) => offering.name).join(", ")}</span
     >
   </span>
 

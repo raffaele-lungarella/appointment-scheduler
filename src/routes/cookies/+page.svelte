@@ -8,7 +8,7 @@
     content="Informativa completa sull'utilizzo dei cookie sul sito di Emi Hair Club. Scopri come utilizziamo i cookie per migliorare la tua esperienza sul nostro sito web."
   />
 </svelte:head>
-<article class="prose p-4 dark:prose-invert">
+<article class="prose p-4 dark:prose-invert mx-auto max-w-2xl">
   <h1>Cookie Policy</h1>
 
   <section>

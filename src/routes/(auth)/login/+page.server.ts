@@ -34,9 +34,17 @@ export const actions: Actions = {
       });
     }
 
-    const existingUser = await UserService.get().getByEmail(form.data.email);
+    const userResult = await UserService.get().getByEmail(form.data.email);
 
-    if (!existingUser || !existingUser.data.verifiedEmail) {
+    if (userResult.isErr() && userResult.error.type === "storage-error") {
+      return fail(503, {
+        success: false,
+        message: "Al momento non è possibile accedere. Riprova più tardi.",
+        form,
+      });
+    }
+
+    if (userResult.isErr() || !userResult.value.account.verifiedEmail) {
       return fail(400, {
         success: false,
         message: "Email o password errati",
@@ -44,7 +52,8 @@ export const actions: Actions = {
       });
     }
 
-    const validPassword = await verify(existingUser.data.passwordHash, form.data.password, {});
+    const existingUser = userResult.value;
+    const validPassword = await verify(existingUser.account.passwordHash, form.data.password, {});
 
     if (!validPassword) {
       return fail(400, {
@@ -55,7 +64,16 @@ export const actions: Actions = {
     }
 
     const sessionToken = auth.generateSessionToken();
-    const session = await auth.createSession(sessionToken, existingUser.data.id);
+    let session;
+    try {
+      session = await auth.createSession(sessionToken, existingUser.account.id);
+    } catch {
+      return fail(500, {
+        success: false,
+        message: "Al momento non è possibile accedere. Riprova più tardi.",
+        form,
+      });
+    }
     auth.setSessionTokenCookie(event, sessionToken, session.expiresAt);
 
     if (existingUser.role === "staff") {
@@ -72,19 +90,28 @@ export const actions: Actions = {
     }
 
     const email = recoverForm.data.email.toLowerCase().trim();
-    const user = await UserService.get().getByEmail(email);
+    const userResult = await UserService.get().getByEmail(email);
 
-    if (!user) {
+    if (userResult.isErr() && userResult.error.type === "storage-error") {
+      return message(
+        recoverForm,
+        { success: false, text: "Impossibile inviare l'email. Riprova più tardi." },
+        { status: 503 },
+      );
+    }
+
+    if (userResult.isErr()) {
       return message(recoverForm, {
         success: true,
         text: "Ti arriverà una mail per aggiornare la password.",
       });
     }
 
+    const user = userResult.value;
     const tokenService = PublicTokenService.get();
     const issuedToken = await tokenService.issue({
       purpose: "password_reset",
-      userID: user.data.id,
+      userID: user.account.id,
       expiresAt: new Date(Date.now() + 60 * 60 * 1000),
     });
     if (issuedToken.isErr()) {
@@ -96,7 +123,7 @@ export const actions: Actions = {
     }
 
     const sent = await new EmailService().recoverPassword({
-      name: user.data.name,
+      name: user.account.name,
       to: email,
       link: `${BASE_URL.replace(/\/$/, "")}/account/reset-password/${issuedToken.value}`,
     });

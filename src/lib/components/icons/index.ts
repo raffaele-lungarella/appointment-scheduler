@@ -55,5 +55,4 @@ export { default as Image } from "@lucide/svelte/icons/image";
 export { default as Puzzle } from "@lucide/svelte/icons/puzzle";
 export { default as Target } from "@lucide/svelte/icons/target";
 export { default as PanelRight } from "@lucide/svelte/icons/panel-right";
-
 export { default as Camera } from "@lucide/svelte/icons/camera";

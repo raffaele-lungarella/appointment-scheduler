@@ -15,11 +15,9 @@
 
   const OUTPUT_SIZE = 400;
 
-  let avatarPreview = $derived<string | null>(staff.data.avatar ?? null);
-  let avatarOriginalSrc = $derived<string | null>(staff.data.avatarOriginal ?? null);
-  let savedOffsetX = $derived<number>(staff.data.avatarOffsetX ?? 0);
-  let savedOffsetY = $derived<number>(staff.data.avatarOffsetY ?? 0);
-  let savedDisplayScale = $derived<number>(staff.data.avatarDisplayScale ?? 0);
+  let avatarPreview = $derived<string | null>(staff.staff.avatar ?? null);
+  let avatarOriginalSrc = $state<string | null>(null);
+  let pendingAvatarPreview = $state<string | null>(null);
   let avatarDialogOpen = $state(false);
   let isImageLoaded = $state(false);
 
@@ -69,9 +67,13 @@
   }
 
   function openAvatarEdit() {
-    initialDisplayScale = savedDisplayScale;
-    initialOffsetX = savedOffsetX;
-    initialOffsetY = savedOffsetY;
+    avatarOriginalSrc = null;
+    isImageLoaded = false;
+    imageNaturalWidth = 0;
+    imageNaturalHeight = 0;
+    initialDisplayScale = 0;
+    initialOffsetX = 0;
+    initialOffsetY = 0;
     avatarDialogOpen = true;
   }
 
@@ -226,10 +228,7 @@
     const base64 = getCroppedBase64();
     if (!base64) return;
 
-    avatarPreview = base64;
-    savedOffsetX = offsetX;
-    savedOffsetY = offsetY;
-    savedDisplayScale = displayScale;
+    pendingAvatarPreview = base64;
 
     const els = updateAvatarForm.elements;
     (els.namedItem("avatarBase64") as HTMLInputElement).value = base64;
@@ -259,7 +258,7 @@
             class="hover:bg-gray-2 hover:cursor-pointer"
           >
             <Avatar.Root class="relative">
-              <Avatar.Fallback>{getInitials(staff.data.name)}</Avatar.Fallback>
+              <Avatar.Fallback>{getInitials(staff.account.name)}</Avatar.Fallback>
               <Avatar.Image src={avatarPreview ?? undefined} alt="Avatar" />
               <div
                 class="h-full w-full bg-transparent hover:bg-background/40 absolute rounded-full transition-all ease-in-out"
@@ -276,9 +275,11 @@
     <Dialog.Content class="flex flex-col items-center gap-4 sm:max-w-xl">
       <Dialog.Header class="w-full">
         <Dialog.Title>Modifica avatar</Dialog.Title>
-        <Dialog.Description
-          >Trascina per riposizionare. Scorri o pizzica per zoomare.</Dialog.Description
-        >
+        <Dialog.Description>
+          {avatarOriginalSrc
+            ? "Trascina per riposizionare. Scorri o pizzica per zoomare."
+            : "Scegli una nuova immagine per modificare l'avatar attuale."}
+        </Dialog.Description>
       </Dialog.Header>
 
       <div class="flex w-full">
@@ -384,7 +385,14 @@
     action="?/updateAvatar"
     method="POST"
     bind:this={updateAvatarForm}
-    use:enhance
+    use:enhance={() =>
+      ({ result }) => {
+        if (result.type === "success" && pendingAvatarPreview) {
+          avatarPreview = pendingAvatarPreview;
+          avatarOriginalSrc = null;
+          pendingAvatarPreview = null;
+        }
+      }}
     class="hidden"
   >
     <input type="hidden" name="avatarBase64" />
@@ -403,6 +411,7 @@
         if (result.type === "success") {
           avatarPreview = null;
           avatarOriginalSrc = null;
+          pendingAvatarPreview = null;
         }
       }}
     class="hidden"

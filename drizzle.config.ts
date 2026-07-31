@@ -10,8 +10,7 @@ if (!url) {
 }
 
 type DBCredentials =
-  | { isLocal: true; url: string }
-  | { isLocal: false; url: string; authToken: string };
+  { isLocal: true; url: string } | { isLocal: false; url: string; authToken: string };
 
 function getCredentials(url: string): DBCredentials {
   if (url.startsWith("file:")) {

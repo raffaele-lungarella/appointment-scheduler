@@ -3,7 +3,7 @@
   import { Button } from "$lib/components/ui/button/index.js";
   import { Calendar } from "$lib/components/ui/calendar/";
   import * as Popover from "$lib/components/ui/popover/index.js";
-  import type { Shutdown } from "@domain";
+  import type { ShutdownDTO } from "$lib/dto";
   import {
     DateFormatter,
     getDayOfWeek,
@@ -19,12 +19,16 @@
     value = $bindable(),
     shutdown,
     staffID,
+    firstAvailableDate,
     onHourReset,
+    onDateChange,
   }: {
     value: string;
-    shutdown: Shutdown[];
+    shutdown: ShutdownDTO[];
     staffID?: string;
+    firstAvailableDate?: DateValue;
     onHourReset?: () => void;
+    onDateChange?: (value: string) => void;
   } = $props();
 
   const weekdayFormatter = new DateFormatter("it-IT", { weekday: "short" });
@@ -48,19 +52,25 @@
     return a?.compare(b) === 0;
   }
 
+  const currentDate = today(getLocalTimeZone());
   const initialDate = parseValue(value);
 
   const selectedDate = $derived(parseValue(value));
-  let visibleStart = $state<DateValue>(initialDate ?? today(getLocalTimeZone()));
+  let visibleStart = $state<DateValue>(initialDate ?? currentDate);
   let isCalendarOpen = $state(false);
-  let shouldAnimateWeek = $state(false);
+
+  $effect(() => {
+    if (!selectedDate && firstAvailableDate) {
+      visibleStart = firstAvailableDate;
+    }
+  });
 
   const visibleDays = $derived(
     Array.from({ length: 7 }, (_, index) => visibleStart.add({ days: index })),
   );
 
   function isDateDisabled(date: DateValue) {
-    return today(getLocalTimeZone()).compare(date) > 0 || getDayOfWeek(date, "it-IT") === 6;
+    return currentDate.compare(date) > 0 || getDayOfWeek(date, "it-IT") === 6;
   }
 
   function isDateUnavailable(date: DateValue): boolean {
@@ -75,46 +85,27 @@
   function selectDate(date: DateValue | undefined, closeCalendar = false) {
     if (!date || !canSelect(date)) return;
 
-    const isLastVisibleDay = date.compare(visibleDays[visibleDays.length - 1]) === 0;
-
     value = date.toString();
+    onDateChange?.(value);
     onHourReset?.();
 
     if (closeCalendar) {
-      shouldAnimateWeek = false;
       visibleStart = date;
       isCalendarOpen = false;
-    } else if (isLastVisibleDay) {
-      shouldAnimateWeek = true;
-      visibleStart = date;
     }
   }
 
   function moveVisibleDays(days: number) {
-    shouldAnimateWeek = false;
     visibleStart = visibleStart.add({ days });
-  }
-
-  function slideWeekIn(_node: Element, { duration = 180 }: { duration?: number }) {
-    if (!shouldAnimateWeek) return { duration: 0 };
-
-    return {
-      duration,
-      css: (_t: number, u: number) => `transform: translateX(${u * 100}%);`,
-    };
   }
 </script>
 
-<div>
-  <h2 class="typo-subtitle">Seleziona una data</h2>
-</div>
-
-<div class="flex items-center justify-between">
+<div class="flex items-center justify-between px-2">
   <div>
     <Popover.Root bind:open={isCalendarOpen}>
       <Popover.Trigger>
         {#snippet child({ props })}
-          <Button {...props} variant="outline" size="icon">
+          <Button {...props} variant="outline" size="icon-sm">
             <CalendarIcon />
             <span class="sr-only">Apri calendario</span>
           </Button>
@@ -147,7 +138,7 @@
 
 <div class="selection-group overflow-hidden">
   {#key visibleStart.toString()}
-    <div class="grid grid-cols-7 gap-2" in:slideWeekIn={{ duration: 180 }}>
+    <div class="grid w-full grid-cols-7 gap-1 sm:gap-2">
       {#each visibleDays as date (date.toString())}
         {@render DateButton(date)}
       {/each}
@@ -160,17 +151,17 @@
   {@const selected = isSameDay(selectedDate, date)}
   <button
     type="button"
-    class="selection-item min-h-18 min-w-10 flex-col items-center justify-center gap-0 rounded-xl px-2 py-3 text-center disabled:cursor-not-allowed disabled:opacity-45"
+    class="selection-item hover:bg-muted! data-[state=on]:bg-muted! min-h-18 min-w-10 flex-col items-center justify-center gap-0 rounded-xl px-2 py-3 text-center disabled:cursor-not-allowed disabled:opacity-50"
     data-state={selected ? "on" : "off"}
     {disabled}
     aria-pressed={selected}
     onclick={() => selectDate(date)}
   >
-    <span class="typo-label capitalize opacity-80">
+    <span class="typo-label capitalize">
       {formatDate(date, weekdayFormatter)}
     </span>
     <span class="mt-1 typo-subtitle">{date.day}</span>
-    <span class="mt-1 typo-caption capitalize opacity-70">
+    <span class="text-muted-foreground mt-1 typo-caption capitalize">
       {formatDate(date, monthFormatter)}
     </span>
   </button>

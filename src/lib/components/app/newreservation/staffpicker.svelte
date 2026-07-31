@@ -2,8 +2,8 @@
   import * as Avatar from "$lib/components/ui/avatar";
   import { Skeleton } from "$lib/components/ui/skeleton";
   import * as ToggleGroup from "$lib/components/ui/toggle-group";
+  import type { StaffSummaryDTO } from "$lib/dto";
   import { cn } from "$lib/utils";
-  import type { Staff } from "@domain";
 
   type Orientation = "horizontal" | "vertical";
   let {
@@ -13,7 +13,7 @@
     class: className,
     onStaffChange,
   }: {
-    staff: Staff[] | Promise<Staff[] | null> | null;
+    staff: StaffSummaryDTO[] | Promise<StaffSummaryDTO[] | null> | null;
     value: string;
     class?: string;
     orientation?: Orientation;
@@ -26,9 +26,7 @@
       : "w-fit max-w-full flex-row items-center overflow-x-auto",
   );
 
-  const itemOrientationClass = $derived(
-    orientation === "vertical" ? "w-full" : "min-w-40 shrink-0",
-  );
+  const itemOrientationClass = $derived(orientation === "vertical" ? "w-full" : "min-w-40 flex-1");
 
   function getInitials(name: string) {
     return name
@@ -47,7 +45,7 @@
   {:then data}
     {#if !data || data.length === 0}
       <p class="text-muted-foreground">
-        Al momento non è specificato nessun membro dello staff. Riprova più tardi.
+        Al momento non è specificato nessun membro del personale. Riprova più tardi.
       </p>
     {:else}
       <ToggleGroup.Root
@@ -55,8 +53,8 @@
         {orientation}
         bind:value
         onValueChange={onStaffChange}
-        class={cn("selection-group", className, rootOrientationClass)}
-        spacing={3}
+        class={cn("selection-group", rootOrientationClass, className)}
+        spacing={2}
       >
         {#each data as member (member.id)}
           <ToggleGroup.Item
@@ -64,7 +62,7 @@
             aria-label={`Scegli ${member.name}`}
             disabled={data.length === 1}
             class={cn(
-              "selection-item min-h-16 justify-start gap-2 rounded-xl px-4 py-3 text-left",
+              "selection-item min-h-16 justify-start gap-2 rounded-xl px-3 py-2 text-left",
               itemOrientationClass,
             )}
           >

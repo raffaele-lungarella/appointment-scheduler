@@ -1,10 +1,11 @@
 <script lang="ts">
   import Logo from "$lib/components/app/logo.svelte";
   import { BARBER_SHOP_DETAILS, SOCIAL_LINKS } from "$lib/constants";
+  import type { UserDTO } from "$lib/dto";
   import { getNavigationItems, ROUTES } from "$lib/navigation";
-  import type { User } from "@domain";
 
-  const { user }: { user: User | null } = $props();
+  const { user }: { user: UserDTO | null } = $props();
+  const currentYear = new Date().getFullYear();
 
   type FooterLink = {
     label: string;
@@ -76,16 +77,6 @@
                   </a>
                 </li>
               {/each}
-              {#if BARBER_SHOP_DETAILS.phone}
-                <li>
-                  <a
-                    href={`tel:${BARBER_SHOP_DETAILS.phone}`}
-                    class="text-muted-foreground hover:text-foreground typo-body-sm transition-colors"
-                  >
-                    {BARBER_SHOP_DETAILS.phone}
-                  </a>
-                </li>
-              {/if}
             </ul>
           </div>
 
@@ -105,6 +96,23 @@
             </ul>
           </div>
         </nav>
+      </div>
+
+      <div
+        class="border-border text-muted-foreground mt-12 flex flex-col gap-3 border-t pt-6 typo-body-sm sm:flex-row sm:items-center sm:justify-between"
+      >
+        <p>© {currentYear} Emi Hair Club. Tutti i diritti riservati.</p>
+        <p>
+          Realizzato da
+          <a
+            href="https://raffaelelungarella.dev"
+            target="_blank"
+            rel="noreferrer"
+            class="text-foreground hover:text-accent transition-colors p-0"
+          >
+            Raffaele Lungarella
+          </a>
+        </p>
       </div>
     </div>
   </div>

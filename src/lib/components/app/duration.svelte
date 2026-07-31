@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { formatDurationParts } from "$lib/utils";
+  import { cn, formatDurationParts } from "$lib/utils";
   import { Clock } from "@lucide/svelte";
 
   const {
@@ -11,7 +11,7 @@
   const time = $derived(formatDurationParts(amount));
 </script>
 
-<span class="inline-flex items-center gap-1 typo-caption {className}">
+<span class={cn("inline-flex items-center gap-1 typo-caption", className)}>
   {#if showIcon}
     <Clock class="size-3" />
   {/if}

@@ -1,6 +1,7 @@
 import { BASE_URL } from "$env/static/private";
 import { signupSchema } from "$lib/modules/zod-schemas";
 import { EmailService } from "$lib/server/mailer";
+import { PublicTokenService } from "@service/public-token.service.js";
 import { UserService } from "@service/user.service.js";
 import { redirect } from "@sveltejs/kit";
 import { message, superValidate } from "sveltekit-superforms";
@@ -53,10 +54,26 @@ export const actions: Actions = {
       }
     }
 
+    const tokenService = PublicTokenService.get();
+    const issuedToken = await tokenService.issue({
+      purpose: "account_verification",
+      userID: user.value.id,
+      expiresAt: user.value.expiresAt ?? new Date(Date.now() + 24 * 60 * 60 * 1000),
+    });
+
+    if (issuedToken.isErr()) {
+      await userService.delete(user.value.id);
+      return message(
+        form,
+        { text: "Impossibile inviare la mail. Riprova più tardi.", success: false },
+        { status: 500 },
+      );
+    }
+
     const sent = await new EmailService().verifyEmail({
       name,
       to: email,
-      link: `${BASE_URL.replace(/\/$/, "")}/account/verify-email/${user.value.id}`,
+      link: `${BASE_URL.replace(/\/$/, "")}/account/verify-email/${issuedToken.value}`,
     });
 
     if (sent.isOk()) {
@@ -65,6 +82,8 @@ export const actions: Actions = {
         success: true,
       });
     } else {
+      await tokenService.revoke(issuedToken.value, "account_verification");
+      await userService.delete(user.value.id);
       return message(form, {
         text: `Impossibile inviare la mail a ${email}. Riprova più tardi.`,
         success: false,

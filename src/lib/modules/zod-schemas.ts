@@ -1,3 +1,4 @@
+import { createMinuteOfDay } from "$lib/domain/minute-of-day";
 import { z } from "zod";
 
 export const emailSchema = z.email({ error: "Inserisci una mail valida" });
@@ -65,16 +66,23 @@ export const signupSchema = z
 // Shared field schemas
 const nameSchema = z.string().min(1);
 const dateSchema = z.iso.date();
-const hourSchema = z.string().min(1);
-const kindsFieldSchema = z.array(z.string().min(1)).min(1);
+const startMinuteSchema = z.coerce
+  .number({ error: "Scegli un orario valido" })
+  .int({ error: "Scegli un orario valido" })
+  .min(0, { error: "Scegli un orario valido" })
+  .max(1439, { error: "Scegli un orario valido" })
+  .transform(createMinuteOfDay);
+export const offeringsFieldSchema = z
+  .array(z.string().min(1))
+  .min(1, { error: "Scegli almeno un servizio" });
 const staffSchema = z.string().min(1);
 const phoneSchema = z.string().optional();
 
 // Base schema with common fields
 const baseUserSchema = z.object({
   date: dateSchema,
-  hour: hourSchema,
-  kinds: kindsFieldSchema,
+  startMinute: startMinuteSchema,
+  offerings: offeringsFieldSchema,
   staff: staffSchema,
 });
 
@@ -88,47 +96,46 @@ export const anonymousUserSchema = baseUserSchema.extend({
 export const usualUserSchema = baseUserSchema;
 
 export const staffUserSchema = baseUserSchema.extend({
-  name: z.string(),
+  name: nameSchema,
   phone: phoneSchema,
 });
 
-export const bookSchema = z
-  .object({
-    who: z.enum(["anonymous", "usual", "staff"]),
-    staff: z.string().min(1, { error: "Scegli uno staff" }),
-    kinds: z.array(z.string().min(1)).min(1, { error: "Scegli almeno un servizio" }),
-    date: z.iso.date({ error: "Scegli una data" }),
-    hour: z.string().min(1, { error: "Scegli un orario" }),
+const bookingFields = {
+  staff: z.string().min(1, { error: "Scegli uno staff" }),
+  offerings: offeringsFieldSchema,
+  date: z.iso.date({ error: "Scegli una data" }),
+  startMinute: startMinuteSchema,
+};
+
+export const bookSchema = z.discriminatedUnion("who", [
+  z.object({
+    who: z.literal("anonymous"),
+    ...bookingFields,
+    name: z.string().trim().min(1, { error: "Il nome è obbligatorio" }),
+    email: z
+      .string()
+      .trim()
+      .min(1, { error: "L'email è obbligatoria" })
+      .pipe(z.email({ error: "Inserisci una mail valida" })),
+    phone: z.string().optional(),
+  }),
+  z.object({
+    who: z.literal("usual"),
+    ...bookingFields,
     name: z.string().optional(),
     email: z.string().optional(),
     phone: z.string().optional(),
-  })
-  .superRefine((data, ctx) => {
-    if (data.who === "anonymous") {
-      if (!data.name?.trim()) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["name"],
-          message: "Il nome è obbligatorio",
-        });
-      }
-      if (!data.email?.trim()) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["email"],
-          message: "L'email è obbligatoria",
-        });
-      } else if (!z.email().safeParse(data.email).success) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["email"],
-          message: "Inserisci una mail valida",
-        });
-      }
-    }
-  });
+  }),
+  z.object({
+    who: z.literal("staff"),
+    ...bookingFields,
+    name: z.string().trim().min(1, { error: "Il nome è obbligatorio" }),
+    email: z.string().optional(),
+    phone: z.string().optional(),
+  }),
+]);
 
-export const kindSchema = z.object({
+export const offeringSchema = z.object({
   name: z.string().min(1, { error: "Il nome è obbligatorio" }),
   description: z.string().default(""),
   duration: z.coerce
@@ -140,7 +147,7 @@ export const kindSchema = z.object({
   active: z.boolean().default(false),
 });
 
-export const updateKindSchema = kindSchema.extend({
+export const updateOfferingSchema = offeringSchema.extend({
   id: z.string().min(1),
 });
 

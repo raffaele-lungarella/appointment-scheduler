@@ -1,15 +1,13 @@
-import { dev } from "$app/environment";
 import {
   Calendar,
   CirclePlus,
   CircleUser,
-  Citrus,
   Euro,
   Library,
   LogOut,
-  Puzzle,
+  Settings,
 } from "$lib/components/icons/index";
-import type { User } from "$lib/domain";
+import type { UserDTO } from "$lib/dto";
 import type { Component } from "@lucide/svelte";
 
 export const ROUTES = {
@@ -39,14 +37,8 @@ export type NavigationItem = {
 };
 
 const navigation = [
-  {
-    title: "Showcase",
-    url: ROUTES.showcase,
-    icon: Puzzle,
-    visibility: "dev",
-  },
   { title: "Prenota", url: ROUTES.book, icon: Calendar, visibility: "public" },
-  { title: "Servizi", url: ROUTES.prices, icon: Euro, visibility: "public" },
+  { title: "Catalogo", url: ROUTES.prices, icon: Euro, visibility: "public" },
   {
     title: "Accedi",
     url: ROUTES.login,
@@ -72,15 +64,15 @@ const navigation = [
     visibility: "logged-in",
   },
   {
-    title: "Dashboard",
+    title: "Agenda",
     url: ROUTES.dashboard,
-    icon: Citrus,
+    icon: Calendar,
     visibility: "admin",
   },
   {
     title: "Impostazioni",
     url: ROUTES.settings,
-    icon: Citrus,
+    icon: Settings,
     visibility: "admin",
   },
   {
@@ -92,7 +84,7 @@ const navigation = [
   },
 ] as const satisfies readonly NavigationItem[];
 
-export function getNavigationItems(user: User | null): NavigationItem[] {
+export function getNavigationItems(user: UserDTO | null): NavigationItem[] {
   return navigation.filter((item) => {
     switch (item.visibility) {
       case "public":
@@ -103,10 +95,10 @@ export function getNavigationItems(user: User | null): NavigationItem[] {
         return user !== null;
       case "admin":
         return user?.role === "staff";
-      case "dev":
-        return dev;
     }
   });
 }
+
+export const reservationDetailRoute = (id: string) => `/reservations/${id}`;
 
 export const isNavigationItemActive = (pathname: string, url: string) => pathname === url;

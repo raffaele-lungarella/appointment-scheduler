@@ -3,10 +3,8 @@
   import { invalidateAll } from "$app/navigation";
   import PageHeader from "$lib/components/app/pageheader.svelte";
   import ReservationDetailsSheet from "$lib/components/app/reservation-details-sheet.svelte";
-  import ReservationStatusBadge from "$lib/components/app/reservationstatusbadge.svelte";
   import {
     CalendarIcon,
-    Eye,
     ChevronLeft,
     ChevronRight,
     CirclePlus,
@@ -18,8 +16,9 @@
   import * as Dialog from "$lib/components/ui/dialog/index";
   import { Input } from "$lib/components/ui/input/index";
   import * as Table from "$lib/components/ui/table/index";
+  import { formatMinuteOfDay } from "$lib/domain/minute-of-day";
+  import type { ReservationDTO } from "$lib/dto";
   import { cn, formatDate } from "$lib/utils";
-  import type { Reservation } from "@domain";
   import { ArrowDown, ArrowUp } from "@lucide/svelte";
   import type { SubmitFunction } from "@sveltejs/kit";
   import { toast } from "svelte-sonner";
@@ -27,18 +26,18 @@
 
   import type { PageData } from "./$types";
 
-  type SortKey = "name" | "date" | "kind" | "status";
+  type SortKey = "name" | "date" | "offering" | "status";
   type SortDirection = "asc" | "desc";
 
   const sortLabels: Record<SortKey, string> = {
     name: "Nome",
     date: "Data e ora",
-    kind: "Servizio",
+    offering: "Servizio",
     status: "Stato",
   };
 
   const { data }: { data: PageData } = $props();
-  const PAGE_SIZE = 10;
+  const PAGE_SIZE = 5;
 
   let searchQuery = $state("");
   let sortKey = $state<SortKey>("date");
@@ -46,8 +45,8 @@
   let currentPage = $state(1);
   const selectedIds = new SvelteSet<string>();
 
-  let selectedReservation = $state<Reservation | null>(null);
-  let reservationToDelete = $state<Reservation | null>(null);
+  let selectedReservation = $state<ReservationDTO | null>(null);
+  let reservationToDelete = $state<ReservationDTO | null>(null);
   let isDetailsOpen = $state(false);
   let isDeleteOpen = $state(false);
   let isBatchDeleteOpen = $state(false);
@@ -65,9 +64,9 @@
             reservation.date,
             safeFormatDate(reservation.date),
             formatShortDate(reservation.date),
-            displayTime(reservation.hour),
-            reservation.hour,
-            ...reservation.kinds.map((kind) => kind.name),
+            formatMinuteOfDay(reservation.startMinute),
+            String(reservation.startMinute),
+            ...reservation.offerings.map((offering) => offering.name),
             reservation.staff?.name,
           ]
             .filter(Boolean)
@@ -122,22 +121,17 @@
     return date;
   }
 
-  function displayTime(hour: string) {
-    const parts = hour.split(":");
-    return parts.length >= 2 ? `${parts[0]}:${parts[1]}` : hour;
-  }
-
-  function compareReservations(a: Reservation, b: Reservation, key: SortKey) {
+  function compareReservations(a: ReservationDTO, b: ReservationDTO, key: SortKey) {
     if (key === "date") {
       const byDate = a.date.localeCompare(b.date);
-      return byDate !== 0 ? byDate : displayTime(a.hour).localeCompare(displayTime(b.hour));
+      return byDate !== 0 ? byDate : a.startMinute - b.startMinute;
     }
 
-    if (key === "kind") {
-      return a.kinds
-        .map((kind) => kind.name)
+    if (key === "offering") {
+      return a.offerings
+        .map((offering) => offering.name)
         .join(", ")
-        .localeCompare(b.kinds.map((kind) => kind.name).join(", "));
+        .localeCompare(b.offerings.map((offering) => offering.name).join(", "));
     }
 
     if (key === "status") {
@@ -156,12 +150,12 @@
     }
   }
 
-  function openDetails(reservation: Reservation) {
+  function openDetails(reservation: ReservationDTO) {
     selectedReservation = reservation;
     isDetailsOpen = true;
   }
 
-  function openDelete(reservation: Reservation) {
+  function openDelete(reservation: ReservationDTO) {
     reservationToDelete = reservation;
     isDeleteOpen = true;
   }
@@ -250,7 +244,7 @@
   </button>
 {/snippet}
 
-<div class="mx-auto w-full max-w-6xl">
+<div class="mx-auto w-full max-w-4xl">
   <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
     <PageHeader
       title="Le tue prenotazioni"
@@ -263,8 +257,8 @@
     </Button>
   </div>
 
-  <div class="mb-6 flex items-center gap-2 md:max-w-md">
-    <div class="relative min-w-0 flex-1">
+  <div class="mb-6 flex items-center gap-2">
+    <div class="relative min-w-0 flex-1 md:max-w-md">
       <Search class="text-muted-foreground absolute left-3 top-1/2 size-4 -translate-y-1/2" />
       <Input
         bind:value={searchQuery}
@@ -300,11 +294,11 @@
               onclick={(event) => event.stopPropagation()}
             />
           </Table.Head>
-          <Table.Head>{@render sortButton("name")}</Table.Head>
+          {#if data.user?.role === "staff"}
+            <Table.Head>{@render sortButton("name")}</Table.Head>
+          {/if}
           <Table.Head>{@render sortButton("date")}</Table.Head>
-          <Table.Head>{@render sortButton("kind")}</Table.Head>
-          <Table.Head>{@render sortButton("status")}</Table.Head>
-          <Table.Head class="w-16 text-right"></Table.Head>
+          <Table.Head>{@render sortButton("offering")}</Table.Head>
         </Table.Row>
       </Table.Header>
       <Table.Body>
@@ -317,7 +311,19 @@
             selectedIds.has(paginatedReservations[index + 1].id)}
           <Table.Row
             data-state={isSelected ? "selected" : undefined}
-            class="group data-[state=selected]:bg-transparent"
+            class="group cursor-pointer rounded-xl outline-none transition-[color,box-shadow] focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-ring/50 data-[state=selected]:bg-transparent"
+            role="button"
+            tabindex={0}
+            onclick={() => openDetails(reservation)}
+            onkeydown={(event) => {
+              if (
+                event.target === event.currentTarget &&
+                (event.key === "Enter" || event.key === " ")
+              ) {
+                event.preventDefault();
+                openDetails(reservation);
+              }
+            }}
           >
             <Table.Cell
               class={cn(
@@ -335,67 +341,43 @@
                 onclick={(event) => event.stopPropagation()}
               />
             </Table.Cell>
+
+            {#if data.user?.role === "staff"}
+              <Table.Cell
+                class="transition-all duration-150 ease-in-out group-hover:bg-muted/30 group-data-[state=selected]:bg-muted/80 group-data-[state=selected]:group-hover:bg-muted/90"
+              >
+                <div class="typo-label">
+                  {reservation.name}
+                </div>
+                <div class="text-muted-foreground typo-caption">
+                  {reservation.email}
+                </div>
+              </Table.Cell>
+            {/if}
             <Table.Cell
               class="transition-all duration-150 ease-in-out group-hover:bg-muted/30 group-data-[state=selected]:bg-muted/80 group-data-[state=selected]:group-hover:bg-muted/90"
             >
               <div class="typo-label">
-                {reservation.name}
-              </div>
-              <div class="text-muted-foreground typo-caption">
-                {reservation.email}
-              </div>
-            </Table.Cell>
-            <Table.Cell
-              class="transition-all duration-150 ease-in-out group-hover:bg-muted/30 group-data-[state=selected]:bg-muted/80 group-data-[state=selected]:group-hover:bg-muted/90"
-            >
-              <div class="typo-label">
-                {formatShortDate(reservation.date)}
+                {safeFormatDate(reservation.date)}
               </div>
               <div class="typo-caption text-muted-foreground">
-                {displayTime(reservation.hour)}
+                {formatMinuteOfDay(reservation.startMinute)}
               </div>
-            </Table.Cell>
-            <Table.Cell
-              class="transition-all duration-150 ease-in-out group-hover:bg-muted/30 group-data-[state=selected]:bg-muted/80 group-data-[state=selected]:group-hover:bg-muted/90"
-            >
-              <div class="typo-label">
-                {reservation.kinds.map((kind) => kind.name).join(", ")}
-              </div>
-              <div class="typo-caption text-muted-foreground">
-                {reservation.staff?.name}
-              </div>
-            </Table.Cell>
-            <Table.Cell
-              class="transition-all duration-150 ease-in-out group-hover:bg-muted/30 group-data-[state=selected]:bg-muted/80 group-data-[state=selected]:group-hover:bg-muted/90"
-            >
-              <ReservationStatusBadge pending={reservation.pending} />
             </Table.Cell>
             <Table.Cell
               class={cn(
                 "transition-all duration-150 ease-in-out group-not-data-[state=selected]:group-hover:rounded-r-xl group-hover:bg-muted/30 group-data-[state=selected]:bg-muted/80 group-data-[state=selected]:group-hover:bg-muted/90",
                 isSelected && selectedRowEdgeClass("right", hasSelectedBefore, hasSelectedAfter),
               )}
-              onclick={(event) => event.stopPropagation()}
             >
-              <div class="flex items-center justify-end gap-2">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  class="size-8"
-                  onclick={() => openDetails(reservation)}
-                >
-                  <span class="sr-only">Vedi dettaglio</span>
-                  <Eye class="size-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  class="size-8 text-destructive hover:text-destructive"
-                  onclick={() => openDelete(reservation)}
-                >
-                  <span class="sr-only">Elimina</span>
-                  <Trash class="size-4" />
-                </Button>
+              <div
+                class="typo-label w-32 truncate"
+                title={reservation.offerings.map((offering) => offering.name).join(", ")}
+              >
+                {reservation.offerings.map((offering) => offering.name).join(", ")}
+              </div>
+              <div class="typo-caption text-muted-foreground">
+                {reservation.staff?.name}
               </div>
             </Table.Cell>
           </Table.Row>
@@ -412,37 +394,30 @@
       </Table.Body>
     </Table.Root>
   {:else if searchQuery}
-    Ricerca non ha portato a nulla
+    Nessun risultato per la ricerca inserita
   {:else}
     Nessuna prenotazione precedente
   {/if}
-</div>
-
-<div
-  class="mt-4 flex flex-col gap-3 typo-body-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between md:px-6 sm:px-4 px-0 lg:px-12"
->
-  <div>
-    {filteredReservations.length} risultati
-  </div>
-
-  <div class="flex items-center justify-end gap-2">
-    <Button
-      variant="outline"
-      size="icon"
-      disabled={currentPage === 1}
-      onclick={() => (currentPage = Math.max(1, currentPage - 1))}
-    >
-      <ChevronLeft class="size-5" />
-    </Button>
-    <span>Pagina {currentPage} di {pageCount}</span>
-    <Button
-      variant="outline"
-      size="icon"
-      disabled={currentPage === pageCount}
-      onclick={() => (currentPage = Math.min(pageCount, currentPage + 1))}
-    >
-      <ChevronRight class="size-5" />
-    </Button>
+  <div
+    class="mt-6 flex flex-col gap-3 typo-body-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between md:px-6 sm:px-4 px-0 lg:px-12"
+  >
+    <div class="flex w-full items-center gap-2 align-middle justify-center">
+      <Button
+        variant="outline"
+        disabled={currentPage === 1}
+        onclick={() => (currentPage = Math.max(1, currentPage - 1))}
+      >
+        <ChevronLeft class="size-5" />
+      </Button>
+      <span>Pagina {currentPage} di {pageCount}</span>
+      <Button
+        variant="outline"
+        disabled={currentPage === pageCount}
+        onclick={() => (currentPage = Math.min(pageCount, currentPage + 1))}
+      >
+        <ChevronRight class="size-5" />
+      </Button>
+    </div>
   </div>
 </div>
 
@@ -450,6 +425,10 @@
   bind:reservation={selectedReservation}
   reservations={filteredReservations}
   bind:open={isDetailsOpen}
+  onDelete={(reservation) => {
+    isDetailsOpen = false;
+    openDelete(reservation);
+  }}
 />
 
 <Dialog.Root bind:open={isDeleteOpen}>

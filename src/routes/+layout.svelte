@@ -44,21 +44,40 @@
 </svelte:head>
 
 <ModeWatcher />
-<Toaster richColors position="bottom-right" />
+<Toaster
+  position="bottom-right"
+  toastOptions={{
+    unstyled: true,
+    classes: {
+      toast:
+        "border-border bg-muted-background text-foreground relative flex w-full items-start gap-3 rounded-xl border p-4 shadow-lg",
+      content: "flex min-w-0 flex-1 flex-col gap-1",
+      icon: "mt-0.5 shrink-0",
+      title: "text-foreground typo-label",
+      description: "text-foreground/80! typo-body-sm",
+      actionButton:
+        "bg-foreground text-background hover:bg-foreground/90 h-8 shrink-0 rounded-lg px-3 typo-label transition-colors",
+      cancelButton:
+        "border-border bg-background text-foreground hover:bg-muted h-8 shrink-0 rounded-lg border px-3 typo-label transition-colors",
+      closeButton:
+        "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground absolute -top-2 -right-2 grid size-6 place-items-center rounded-full border shadow-sm transition-colors",
+    },
+  }}
+/>
 
 {#if isNavigating}
   <Progress class="fixed top-0 z-50 h-1 w-full rounded-none" value={navigationProgress} />
 {/if}
 
-<div class="flex min-h-dvh w-full flex-col">
+<div class="flex min-h-dvh w-full min-w-0 flex-col">
   {#if data.banner?.visible}
     <Banner message={data.banner.message} />
   {/if}
   <div class="sticky top-0 z-40">
     <MenuBar user={data.user} />
   </div>
-  <main class="app-padding relative flex min-h-dvh flex-col">
-    <div class="grow px-2 py-16 sm:px-8">
+  <main class="app-padding relative flex min-h-dvh min-w-0 flex-col">
+    <div class="min-w-0 grow px-2 py-16 sm:px-8">
       {@render children()}
     </div>
   </main>

@@ -9,7 +9,7 @@
   />
 </svelte:head>
 
-<article class="prose p-4 dark:prose-invert">
+<article class="prose p-4 dark:prose-invert mx-auto max-w-2xl">
   <h1>Privacy Policy</h1>
 
   <section>

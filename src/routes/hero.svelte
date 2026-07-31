@@ -21,8 +21,8 @@
   ></div>
 
   <div class="relative z-10 flex min-h-[70dvh] w-full items-end p-6 sm:p-10 md:p-14 lg:p-16">
-    <div class="max-w-4xl text-white">
-      <h1 id="home-hero-title" class="max-w-3xl typo-display text-balance">
+    <div class="max-w-4xl">
+      <h1 id="home-hero-title" class="max-w-3xl typo-display text-balance text-white">
         Emi<br />Hair Club
       </h1>
 
@@ -31,11 +31,22 @@
       </p>
 
       <div class="mt-10 flex flex-col gap-3 sm:flex-row">
-        <Button href={ROUTES.book} size="lg">
+        <Button
+          href={ROUTES.book}
+          size="lg"
+          class="bg-white text-black shadow-lg shadow-black/20 not-disabled:hover:bg-white/90"
+        >
           Prenota ora
           <ArrowUpRight />
         </Button>
-        <Button href={ROUTES.prices} size="lg" variant="outline">Vedi i servizi</Button>
+        <Button
+          href={ROUTES.prices}
+          size="lg"
+          variant="outline"
+          class="border-white/50 bg-black/30 text-white backdrop-blur-sm not-disabled:hover:border-white/70 not-disabled:hover:bg-black/45 not-disabled:hover:text-white"
+        >
+          Vedi i servizi
+        </Button>
       </div>
     </div>
   </div>

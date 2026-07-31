@@ -307,11 +307,34 @@
   html {
     --scrollbar-size: 6px;
 
+    max-width: 100%;
+    overflow-x: clip;
     background-color: var(--color-background);
     color: var(--color-foreground);
     scrollbar-gutter: stable;
     scrollbar-width: thin;
     scrollbar-color: var(--gray-6) transparent;
+  }
+
+  body {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: clip;
+  }
+
+  ::selection {
+    background-color: color-mix(in srgb, var(--color-accent) 75%, white);
+    color: white;
+  }
+
+  /* Bits UI locks body scrolling inline. Keep body as the sticky containing block
+     and apply the lock to the root instead so sticky site chrome stays in place. */
+  html:has(> body[style*="overflow: hidden"]) {
+    overflow: hidden;
+  }
+
+  body[style*="overflow: hidden"] {
+    overflow: visible !important;
   }
 
   *::-webkit-scrollbar:vertical {
@@ -346,14 +369,12 @@
 }
 
 @utility selection-group {
-  @apply bg-gray-2 border-border gap-2 rounded-2xl border p-2;
+  @apply bg-gray-2 border-border rounded-2xl border p-2;
 }
 
 @utility selection-item {
   @apply flex
     h-auto
-    border
-    border-transparent
     bg-transparent
     text-muted-foreground
     transition-colors
@@ -361,7 +382,6 @@
     hover:text-foreground
     disabled:hover:bg-transparent
     disabled:hover:text-muted-foreground
-    data-[state=on]:border-border
     data-[state=on]:bg-gray-3
     data-[state=on]:text-foreground
     data-[state=on]:shadow-sm;
@@ -401,11 +421,11 @@
 }
 
 @utility typo-label {
-  @apply text-sm font-medium leading-5 tracking-[0.005em];
+  @apply text-sm leading-5 tracking-[0.005em];
 }
 
 @utility typo-caption {
-  @apply text-xs font-normal leading-4 tracking-[0.01em];
+  @apply text-xs leading-4 tracking-[0.01em];
 }
 
 @utility typo-overline {

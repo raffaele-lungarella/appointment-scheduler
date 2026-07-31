@@ -29,22 +29,19 @@ describe("ShutdownService", () => {
     const first = await service.insert("2099-06-15", "2099-06-20", "staff-1");
     const second = await service.insert("2099-07-01", "2099-07-02", "staff-2");
 
-    expect(first?.id).toEqual(expect.any(String));
-    expect(second?.id).toEqual(expect.any(String));
-    expect(first?.id).not.toBe(second?.id);
+    expect(first.isOk() && first.value).toEqual({ affectedRows: 1 });
+    expect(second.isOk() && second.value).toEqual({ affectedRows: 1 });
 
     const all = await service.getAll();
     expect(all).toHaveLength(2);
     expect(all).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          id: first?.id,
           staffID: "staff-1",
           start: "2099-06-15",
           end: "2099-06-20",
         }),
         expect.objectContaining({
-          id: second?.id,
           staffID: "staff-2",
           start: "2099-07-01",
           end: "2099-07-02",
@@ -54,29 +51,37 @@ describe("ShutdownService", () => {
 
     expect(await service.getStaffShutdown("staff-1")).toEqual([
       expect.objectContaining({
-        id: first?.id,
         staffID: "staff-1",
       }),
     ]);
   });
 
   it("rejects invalid dates before writing to SQLite", async () => {
-    expect(await service.insert("not-a-date", "2099-06-20", "staff-1")).toBeNull();
-    expect(await service.insert("2099-06-15", "also-invalid", "staff-1")).toBeNull();
+    const invalidStart = await service.insert("not-a-date", "2099-06-20", "staff-1");
+    const invalidEnd = await service.insert("2099-06-15", "also-invalid", "staff-1");
+    expect(invalidStart.isErr() && invalidStart.error.type).toBe("invalid-input");
+    expect(invalidEnd.isErr() && invalidEnd.error.type).toBe("invalid-input");
     expect(await testDatabase.database.select().from(table.shutdowns)).toEqual([]);
   });
 
-  it("returns null when the staff foreign key does not exist", async () => {
-    expect(await service.insert("2099-06-15", "2099-06-20", "missing-staff")).toBeNull();
+  it("returns a storage error when the staff foreign key does not exist", async () => {
+    const result = await service.insert("2099-06-15", "2099-06-20", "missing-staff");
+    expect(result.isErr() && result.error.type).toBe("storage-error");
     expect(await testDatabase.database.select().from(table.shutdowns)).toEqual([]);
   });
 
   it("deletes a shutdown by ID", async () => {
     const inserted = await service.insert("2099-06-15", "2099-06-20", "staff-1");
-    if (!inserted) throw new Error("Expected shutdown insertion to succeed");
+    if (inserted.isErr()) throw new Error("Expected shutdown insertion to succeed");
+    const shutdown = (await service.getStaffShutdown("staff-1"))?.[0];
+    if (!shutdown) throw new Error("Expected inserted shutdown");
 
-    expect(await service.delete("missing-shutdown")).toEqual([]);
-    expect(await service.delete(inserted.id)).toEqual([{ id: inserted.id }]);
+    const missing = await service.delete("missing-shutdown", "staff-1");
+    expect(missing.isErr() && missing.error.type).toBe("not-found");
+    const wrongOwner = await service.delete(shutdown.id, "staff-2");
+    expect(wrongOwner.isErr() && wrongOwner.error.type).toBe("not-found");
+    const deleted = await service.delete(shutdown.id, "staff-1");
+    expect(deleted.isOk() && deleted.value).toEqual({ affectedRows: 1 });
     expect(await service.getAll()).toEqual([]);
   });
 
