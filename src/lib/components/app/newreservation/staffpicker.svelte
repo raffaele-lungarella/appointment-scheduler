@@ -28,6 +28,13 @@
 
   const itemOrientationClass = $derived(orientation === "vertical" ? "w-full" : "min-w-40 flex-1");
 
+  $effect(() => {
+    if (!Array.isArray(staff) || staff.length !== 1 || value === staff[0].id) return;
+
+    value = staff[0].id;
+    onStaffChange?.(staff[0].id);
+  });
+
   function getInitials(name: string) {
     return name
       .split(" ")
@@ -60,7 +67,6 @@
           <ToggleGroup.Item
             value={member.id}
             aria-label={`Scegli ${member.name}`}
-            disabled={data.length === 1}
             class={cn(
               "selection-item min-h-16 justify-start gap-2 rounded-xl px-3 py-2 text-left",
               itemOrientationClass,
