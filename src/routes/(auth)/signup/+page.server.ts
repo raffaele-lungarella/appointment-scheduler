@@ -1,4 +1,3 @@
-import { BASE_URL } from "$env/static/private";
 import { signupSchema } from "$lib/modules/zod-schemas";
 import { EmailService } from "$lib/server/mailer";
 import { PublicTokenService } from "@service/public-token.service.js";
@@ -73,7 +72,7 @@ export const actions: Actions = {
     const sent = await new EmailService().verifyEmail({
       name,
       to: email,
-      link: `${BASE_URL.replace(/\/$/, "")}/account/verify-email/${issuedToken.value}`,
+      link: new URL(`/account/verify-email/${issuedToken.value}`, event.url.origin).href,
     });
 
     if (sent.isOk()) {

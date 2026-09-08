@@ -1,4 +1,3 @@
-import { BASE_URL } from "$env/static/private";
 import { formatMinuteOfDay } from "$lib/domain/minute-of-day";
 import { bookSchema } from "$lib/modules/zod-schemas.js";
 import { logger } from "$lib/server/logger.js";
@@ -130,7 +129,7 @@ export const actions: Actions = {
 
       const sent = await new EmailService().newReservation({
         name: data.name,
-        link: `${BASE_URL.replace(/\/$/, "")}/book/confirm/${confirmationToken.value}`,
+        link: new URL(`/book/confirm/${confirmationToken.value}`, event.url.origin).href,
         staffName: reservation.staff.name,
         serviceNames: reservation.offerings.map((offering) => offering.name),
         date: formatDate(reservation.date),

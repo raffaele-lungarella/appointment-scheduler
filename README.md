@@ -17,13 +17,13 @@ Create a `.env` file for local development:
 ```dotenv
 DATABASE_CONNECTION_URL=file:local.db
 DATABASE_AUTH_TOKEN=
-BASE_URL=http://localhost:5173
+
 MAILER=
 CRON_SECRET=
 RATE_LIMIT_HASH_SECRET=
 ```
 
-`DATABASE_AUTH_TOKEN` is optional for a local `file:` database and required for a remote Turso database. `MAILER` is the Resend API token used for email notifications, while `BASE_URL` is used to build links included in those emails. `CRON_SECRET` authenticates the internal scheduled-cleanup endpoint. `RATE_LIMIT_HASH_SECRET` HMAC-hashes client addresses used by the database-backed abuse limiter. Both secrets must be independent, cryptographically random production values of at least 32 characters.
+`DATABASE_AUTH_TOKEN` is optional for a local `file:` database and required for a remote Turso database. `MAILER` is the Resend API token used for email notifications. Links included in emails use the origin of the incoming request automatically. `CRON_SECRET` authenticates the internal scheduled-cleanup endpoint. `RATE_LIMIT_HASH_SECRET` HMAC-hashes client addresses used by the database-backed abuse limiter. Both secrets must be independent, cryptographically random production values of at least 32 characters.
 
 Prepare the database and start the development server:
 

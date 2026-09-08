@@ -559,6 +559,29 @@ describe("ReservationService", () => {
     expect(deletedAll.isOk() && deletedAll.value).toEqual({ affectedRows: 0 });
   });
 
+  it("deletes all staff reservations before a staff account is removed", async () => {
+    const inserted = await service.insertByAnonymous({
+      who: "anonymous",
+      name: "Customer",
+      email: "customer@example.com",
+      date: "2099-06-15",
+      startMinute: createMinuteOfDay(600),
+      offerings: ["haircut"],
+      staff: "staff-1",
+    });
+    if (inserted.isErr()) throw new Error(`Insertion failed: ${inserted.error}`);
+
+    const deletedReservations = await service.deleteAllByStaff("staff-1");
+    expect(deletedReservations.isOk() && deletedReservations.value).toEqual({ affectedRows: 1 });
+
+    const deletedUser = await testDatabase.database
+      .delete(table.user)
+      .where(eq(table.user.id, "staff-1"))
+      .returning({ id: table.user.id });
+    expect(deletedUser).toEqual([{ id: "staff-1" }]);
+    expect(await testDatabase.database.select().from(table.reservationOffering)).toEqual([]);
+  });
+
   it("atomically scopes deletion to the authenticated staff", async () => {
     const inserted = await service.insertByAnonymous({
       who: "anonymous",

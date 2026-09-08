@@ -511,6 +511,21 @@ export class ReservationService extends Service {
     }
   }
 
+  async deleteAllByStaff(
+    staffID: string,
+  ): Promise<ServiceResult<AffectedRows, ReservationStorageError>> {
+    try {
+      const deleted = await this.database
+        .delete(table.reservation)
+        .where(eq(table.reservation.staffID, staffID))
+        .returning({ id: table.reservation.id });
+      return ok({ affectedRows: deleted.length });
+    } catch (e) {
+      logger.error({ err: e, staffId: staffID }, "deleteAllByStaff failed");
+      return err({ type: "storage-error" });
+    }
+  }
+
   async deleteAllByUser(
     userID: string,
     email: string,

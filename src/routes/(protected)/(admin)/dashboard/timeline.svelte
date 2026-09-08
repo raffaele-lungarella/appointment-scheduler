@@ -1,5 +1,9 @@
 <script lang="ts">
+  import { enhance } from "$app/forms";
+  import { invalidate } from "$app/navigation";
   import ReservationDetailsSheet from "$lib/components/app/reservation-details-sheet.svelte";
+  import { Button } from "$lib/components/ui/button";
+  import * as Dialog from "$lib/components/ui/dialog";
   import type { ReservationDTO } from "$lib/dto";
   import {
     createTimelineScale,
@@ -10,7 +14,9 @@
   } from "$lib/modules/timeline";
   import { getLocalTimeZone, isToday, today } from "@internationalized/date";
   import type { DateValue } from "@internationalized/date";
+  import type { SubmitFunction } from "@sveltejs/kit";
   import { onMount } from "svelte";
+  import { toast } from "svelte-sonner";
 
   import TimelineReservation from "./timeline-reservation.svelte";
 
@@ -80,12 +86,35 @@
   });
 
   let selectedReservation: ReservationDTO | null = $state(null);
+  let reservationToDelete: ReservationDTO | null = $state(null);
   let detailsOpen = $state(false);
+  let deleteOpen = $state(false);
 
   function showDetails(reservation: ReservationDTO) {
     selectedReservation = reservation;
     detailsOpen = true;
   }
+
+  function requestDelete(reservation: ReservationDTO) {
+    reservationToDelete = reservation;
+    detailsOpen = false;
+    deleteOpen = true;
+  }
+
+  const submitDelete: SubmitFunction = async () => {
+    return async ({ result }) => {
+      if (result.type === "success") {
+        await invalidate("app:dashboard-reservations");
+        selectedReservation = null;
+        toast.success("Prenotazione eliminata");
+      } else {
+        toast.error("Errore durante l'eliminazione della prenotazione. Riprova più tardi");
+      }
+
+      deleteOpen = false;
+      reservationToDelete = null;
+    };
+  };
 </script>
 
 {#snippet timeChip(label: string, variant: "hover" | "current")}
@@ -170,4 +199,21 @@
   bind:reservation={selectedReservation}
   {reservations}
   bind:open={detailsOpen}
+  onDelete={requestDelete}
 />
+
+<Dialog.Root bind:open={deleteOpen}>
+  <Dialog.Content>
+    <Dialog.Header>
+      <Dialog.Title>Eliminare questa prenotazione?</Dialog.Title>
+      <Dialog.Description>L'azione è irreversibile.</Dialog.Description>
+    </Dialog.Header>
+    <Dialog.Footer>
+      <Button variant="outline" onclick={() => (deleteOpen = false)}>Annulla</Button>
+      <form action="?/delete" method="post" use:enhance={submitDelete}>
+        <input type="hidden" name="id" value={reservationToDelete?.id ?? ""} />
+        <Button type="submit" variant="destructive">Conferma</Button>
+      </form>
+    </Dialog.Footer>
+  </Dialog.Content>
+</Dialog.Root>

@@ -4,7 +4,7 @@
   import EditButton from "$lib/components/app/editbutton.svelte";
   import PageHeader from "$lib/components/app/pageheader.svelte";
   import Passwordinput from "$lib/components/app/passwordinput.svelte";
-  import { CircleAlert, CircleCheckBig, KeyRound, Pencil, Save } from "$lib/components/icons";
+  import { CircleAlert, KeyRound, Pencil } from "$lib/components/icons";
   import * as AlertDialog from "$lib/components/ui/alert-dialog/index.js";
   import * as Alert from "$lib/components/ui/alert/index.js";
   import Button from "$lib/components/ui/button/button.svelte";
@@ -73,6 +73,12 @@
     untrack(() => data.changePasswordForm),
     {
       validators: zodClient(profileChangePasswordSchema),
+      onUpdated({ form }) {
+        if (!form.message?.success) return;
+
+        toast.success("Password aggiornata con successo");
+        changePasswordDialog = false;
+      },
     },
   );
   const {
@@ -135,7 +141,7 @@
 
             <div class="text-end">
               <EditButton bind:pressed={isEditingInfo} onclick={toggleInfoUpdate} />
-              <Button class="ml-2" type="submit" disabled={!isEditingInfo}><Save />Salva</Button>
+              <Button class="ml-2" type="submit" disabled={!isEditingInfo}>Salva</Button>
             </div>
           </form>
         </div>
@@ -241,62 +247,50 @@
     <Dialog.Header>
       <Dialog.Title>Cambia password</Dialog.Title>
     </Dialog.Header>
-    {#if $changePasswordMessage?.success}
-      <div class="flex flex-col gap-4">
-        <Alert.Root variant="default" class="flex items-center gap-2">
-          <CircleCheckBig class="size-4" />
+    <form action="?/changePassword" method="post" use:changePasswordEnhance class="space-y-4">
+      {#if $changePasswordMessage?.success === false}
+        <Alert.Root variant="destructive" class="flex items-center gap-2">
+          <CircleAlert class="size-4" />
           <Alert.Description>{$changePasswordMessage.text}</Alert.Description>
         </Alert.Root>
-        <Dialog.Footer>
-          <Button onclick={() => (changePasswordDialog = false)}>Chiudi</Button>
-        </Dialog.Footer>
-      </div>
-    {:else}
-      <form action="?/changePassword" method="post" use:changePasswordEnhance class="space-y-4">
-        {#if $changePasswordMessage?.success === false}
-          <Alert.Root variant="destructive" class="flex items-center gap-2">
-            <CircleAlert class="size-4" />
-            <Alert.Description>{$changePasswordMessage.text}</Alert.Description>
-          </Alert.Root>
-        {/if}
+      {/if}
 
-        <Form.Field form={changePasswordSForm} name="oldPassword">
-          <Form.Control>
-            {#snippet children({ props })}
-              <Form.Label>Password attuale</Form.Label>
-              <Passwordinput {...props} bind:value={$changePasswordData.oldPassword} />
-            {/snippet}
-          </Form.Control>
-          <Form.FieldErrors />
-        </Form.Field>
+      <Form.Field form={changePasswordSForm} name="oldPassword">
+        <Form.Control>
+          {#snippet children({ props })}
+            <Form.Label>Password attuale</Form.Label>
+            <Passwordinput {...props} bind:value={$changePasswordData.oldPassword} />
+          {/snippet}
+        </Form.Control>
+        <Form.FieldErrors />
+      </Form.Field>
 
-        <Form.Field form={changePasswordSForm} name="newPassword">
-          <Form.Control>
-            {#snippet children({ props })}
-              <Form.Label>Nuova password</Form.Label>
-              <Passwordinput {...props} bind:value={$changePasswordData.newPassword} />
-            {/snippet}
-          </Form.Control>
-          <Form.FieldErrors />
-        </Form.Field>
+      <Form.Field form={changePasswordSForm} name="newPassword">
+        <Form.Control>
+          {#snippet children({ props })}
+            <Form.Label>Nuova password</Form.Label>
+            <Passwordinput {...props} bind:value={$changePasswordData.newPassword} />
+          {/snippet}
+        </Form.Control>
+        <Form.FieldErrors />
+      </Form.Field>
 
-        <Form.Field form={changePasswordSForm} name="confirmPassword">
-          <Form.Control>
-            {#snippet children({ props })}
-              <Form.Label>Conferma password</Form.Label>
-              <Passwordinput {...props} bind:value={$changePasswordData.confirmPassword} />
-            {/snippet}
-          </Form.Control>
-          <Form.FieldErrors />
-        </Form.Field>
+      <Form.Field form={changePasswordSForm} name="confirmPassword">
+        <Form.Control>
+          {#snippet children({ props })}
+            <Form.Label>Conferma password</Form.Label>
+            <Passwordinput {...props} bind:value={$changePasswordData.confirmPassword} />
+          {/snippet}
+        </Form.Control>
+        <Form.FieldErrors />
+      </Form.Field>
 
-        <Dialog.Footer>
-          <Button variant="secondary" type="button" onclick={() => (changePasswordDialog = false)}>
-            Annulla
-          </Button>
-          <Button type="submit" disabled={$changePasswordDelayed}>Cambia</Button>
-        </Dialog.Footer>
-      </form>
-    {/if}
+      <Dialog.Footer>
+        <Button variant="secondary" type="button" onclick={() => (changePasswordDialog = false)}>
+          Annulla
+        </Button>
+        <Button type="submit" disabled={$changePasswordDelayed}>Cambia</Button>
+      </Dialog.Footer>
+    </form>
   </Dialog.Content>
 </Dialog.Root>

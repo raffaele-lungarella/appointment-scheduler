@@ -1,4 +1,3 @@
-import { BASE_URL } from "$env/static/private";
 import { loginSchema, recoverPasswordSchema } from "$lib/modules/zod-schemas";
 import * as auth from "$lib/server/auth";
 import { EmailService } from "$lib/server/mailer";
@@ -125,7 +124,7 @@ export const actions: Actions = {
     const sent = await new EmailService().recoverPassword({
       name: user.account.name,
       to: email,
-      link: `${BASE_URL.replace(/\/$/, "")}/account/reset-password/${issuedToken.value}`,
+      link: new URL(`/account/reset-password/${issuedToken.value}`, event.url.origin).href,
     });
 
     if (!sent.isOk()) {

@@ -158,7 +158,7 @@
     {#if analyticsOpen}
       <div
         class="absolute inset-y-0 right-0 z-30 w-[min(17rem,calc(100%-1rem))] origin-right lg:static lg:z-auto lg:w-auto"
-        transition:scale={{ start: 0.98, duration: 160, opacity: 0.35, easing: cubicOut }}
+        transition:scale={{ start: 0.98, duration: 160, opacity: 0, easing: cubicOut }}
       >
         <AnalyticsSidebar {reservations} />
       </div>

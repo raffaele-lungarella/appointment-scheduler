@@ -1,4 +1,3 @@
-import { BASE_URL } from "$env/static/private";
 import { profileChangeEmailSchema, profileChangePasswordSchema } from "$lib/modules/zod-schemas";
 import * as auth from "$lib/server/auth";
 import { logger } from "$lib/server/logger";
@@ -110,7 +109,7 @@ export const actions: Actions = {
 
     redirect(302, url.pathname);
   },
-  changeEmail: async ({ locals, request }) => {
+  changeEmail: async ({ locals, request, url }) => {
     if (!locals.session || !locals.user) {
       return fail(401);
     }
@@ -151,7 +150,7 @@ export const actions: Actions = {
     const sent = await new EmailService().changeEmail({
       name: locals.user.account.name,
       to: email,
-      link: `${BASE_URL.replace(/\/$/, "")}/account/confirm-email-change/${emailChangeToken.value}`,
+      link: new URL(`/account/confirm-email-change/${emailChangeToken.value}`, url.origin).href,
     });
 
     if (sent.isErr()) {
@@ -193,6 +192,12 @@ export const actions: Actions = {
       user.account.email,
     );
     if (deletedReservations.isErr()) return fail(503);
+
+    if (user.role === "staff") {
+      const deletedStaffReservations = await reservationService.deleteAllByStaff(user.account.id);
+      if (deletedStaffReservations.isErr()) return fail(503);
+    }
+
     await passwordRecoverService.deleteByUserID(user.account.id);
     await publicTokenService.deleteByUserID(user.account.id);
 
