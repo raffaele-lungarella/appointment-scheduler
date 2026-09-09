@@ -3,9 +3,7 @@ import * as auth from "$lib/server/auth";
 import { logger } from "$lib/server/logger";
 import { EmailService } from "$lib/server/mailer";
 import { getNumber, getString } from "$lib/utils";
-import { PasswordRecoverService } from "@service/password-recover.service.js";
 import { PublicTokenService } from "@service/public-token.service.js";
-import { ReservationService } from "@service/reservation.service.js";
 import { SessionService } from "@service/session.service.js";
 import { StaffService } from "@service/staff.service";
 import { UserService } from "@service/user.service.js";
@@ -178,30 +176,10 @@ export const actions: Actions = {
     }
 
     const userService = UserService.get();
-    const sessionService = SessionService.get();
-    const passwordRecoverService = PasswordRecoverService.get();
-    const publicTokenService = PublicTokenService.get();
-    const reservationService = ReservationService.get();
 
     logger.warn("Deleting account of user: " + user.account.email);
 
-    // Delete all related data
-    await sessionService.deleteAllByUserID(user.account.id);
-    const deletedReservations = await reservationService.deleteAllByUser(
-      user.account.id,
-      user.account.email,
-    );
-    if (deletedReservations.isErr()) return fail(503);
-
-    if (user.role === "staff") {
-      const deletedStaffReservations = await reservationService.deleteAllByStaff(user.account.id);
-      if (deletedStaffReservations.isErr()) return fail(503);
-    }
-
-    await passwordRecoverService.deleteByUserID(user.account.id);
-    await publicTokenService.deleteByUserID(user.account.id);
-
-    const res = await userService.delete(user.account.id);
+    const res = await userService.deleteAccount(user.account.id, user.account.email);
 
     if (res) {
       logger.info("Successfully deleted account of user: " + res.email);

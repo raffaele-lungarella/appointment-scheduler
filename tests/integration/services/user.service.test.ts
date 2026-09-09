@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createTestDatabase, type TestDatabase } from "../../support/database";
-import { seedStaff, seedUser } from "../../support/fixtures";
+import { seedOffering, seedStaff, seedUser } from "../../support/fixtures";
 
 describe("UserService", () => {
   let testDatabase: TestDatabase;
@@ -121,6 +121,48 @@ describe("UserService", () => {
       verifiedEmail: true,
       expiresAt: null,
     });
+  });
+
+  it("deletes an account and all related data atomically", async () => {
+    await seedStaff(testDatabase.database);
+    await seedOffering(testDatabase.database);
+    await testDatabase.database.insert(table.session).values({
+      id: "session-1",
+      userID: "staff-1",
+      expiresAt: new Date("2099-01-01T00:00:00.000Z"),
+    });
+    await testDatabase.database.insert(table.reservation).values({
+      id: "reservation-1",
+      date: "2099-06-15",
+      hour: "10:00",
+      startMinute: 600,
+      name: "Customer",
+      email: "customer@example.com",
+      staffID: "staff-1",
+      expiresAt: new Date("2099-06-16T00:00:00.000Z"),
+    });
+    await testDatabase.database.insert(table.reservationOffering).values({
+      reservationID: "reservation-1",
+      offeringID: "offering-1",
+      position: 0,
+    });
+    await testDatabase.database.insert(table.publicToken).values({
+      tokenHash: "token-1",
+      purpose: "account_verification",
+      userID: "staff-1",
+      expiresAt: new Date("2099-01-01T00:00:00.000Z"),
+    });
+
+    const deleted = await service.deleteAccount("staff-1", "barber@example.com");
+
+    expect(deleted?.id).toBe("staff-1");
+    expect(await testDatabase.database.select().from(table.user)).toEqual([]);
+    expect(await testDatabase.database.select().from(table.staff)).toEqual([]);
+    expect(await testDatabase.database.select().from(table.session)).toEqual([]);
+    expect(await testDatabase.database.select().from(table.reservation)).toEqual([]);
+    expect(await testDatabase.database.select().from(table.reservationOffering)).toEqual([]);
+    expect(await testDatabase.database.select().from(table.offering)).toEqual([]);
+    expect(await testDatabase.database.select().from(table.publicToken)).toEqual([]);
   });
 
   it("counts and deletes only expired unverified users", async () => {

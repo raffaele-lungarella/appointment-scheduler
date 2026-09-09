@@ -9,7 +9,7 @@ import type { User } from "$lib/server/domain";
 import { toUserDomain } from "$lib/server/mappers/user.mapper";
 import { encodeBase32LowerCase } from "@oslojs/encoding";
 import { hash } from "argon2";
-import { and, count, eq, isNotNull, lt } from "drizzle-orm";
+import { and, count, eq, isNotNull, isNull, lt, or } from "drizzle-orm";
 
 import { createLogger } from "../logger";
 import { Service } from "./service";
@@ -221,6 +221,32 @@ export class UserService extends Service {
       return await this.database.delete(table.user).where(eq(table.user.id, id)).returning().get();
     } catch (e) {
       logger.error({ err: e, userId: id }, "delete failed");
+      return null;
+    }
+  }
+
+  async deleteAccount(id: string, email: string) {
+    try {
+      const normalizedEmail = email.toLowerCase().trim();
+
+      return await this.database.transaction(async (tx) => {
+        await tx
+          .delete(table.reservation)
+          .where(
+            or(
+              eq(table.reservation.ownerUserID, id),
+              eq(table.reservation.staffID, id),
+              and(
+                isNull(table.reservation.ownerUserID),
+                eq(table.reservation.email, normalizedEmail),
+              ),
+            ),
+          );
+
+        return await tx.delete(table.user).where(eq(table.user.id, id)).returning().get();
+      });
+    } catch (e) {
+      logger.error({ err: e, userId: id }, "deleteAccount failed");
       return null;
     }
   }
