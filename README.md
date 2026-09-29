@@ -20,9 +20,6 @@ pnpm dev
 - BASE_URL: Url used to redirect from an email to the site;
 - DATABASE_AUTH_TOKEN & DATABASE_CONNECTION_URL: SQLite database auth and url;
 
-> [!IMPORTANT]
-> The application is ACTUALLY being used by Emiliano Lo Russo at **Emi Hair Club**. If you're near Siena, stop by for a cut :).
-
 ## License
 
 This project is licensed under the [MIT license](./LICENSE).
