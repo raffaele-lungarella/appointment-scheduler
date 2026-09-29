@@ -81,7 +81,7 @@
           </div>
 
           <div>
-            <h2 class="text-foreground mb-6 typo-body-sm">Trasparenza</h2>
+            <h2 class="text-foreground mb-6 typo-body-sm">Privacy e cookie</h2>
             <ul class="space-y-4">
               {#each legalLinks as link}
                 <li>
