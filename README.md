@@ -55,10 +55,7 @@ Useful database commands:
 
 The Drizzle configuration reads `.env`. A `DATABASE_CONNECTION_URL` beginning with `file:` uses local SQLite; any other URL is treated as a remote Turso database and also requires `DATABASE_AUTH_TOKEN`.
 
-Production builds and database migrations are intentionally separate:
-
-- `pnpm release` creates the production build and does not access or modify the database.
-- `pnpm release:migrate` applies pending migrations and must be run as an explicit deployment step with production database credentials.
+Production builds and database migrations are intentionally separate.
 
 Do not put migration execution in Vercel's build command. Apply migrations once from a controlled deployment/release job before directing traffic to a release that requires them.
 
