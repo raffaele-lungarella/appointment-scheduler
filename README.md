@@ -14,16 +14,23 @@ pnpm install
 
 Create a `.env` file for local development:
 
-```dotenv
-DATABASE_CONNECTION_URL=file:local.db
-DATABASE_AUTH_TOKEN=
-
-MAILER=
-CRON_SECRET=
-RATE_LIMIT_HASH_SECRET=
+```bash
+cp .env.example .env
 ```
 
-`DATABASE_AUTH_TOKEN` is optional for a local `file:` database and required for a remote Turso database. `MAILER` is the Resend API token used for email notifications. Links included in emails use the origin of the incoming request automatically. `CRON_SECRET` authenticates the internal scheduled-cleanup endpoint. `RATE_LIMIT_HASH_SECRET` HMAC-hashes client addresses used by the database-backed abuse limiter. Both secrets must be independent, cryptographically random production values of at least 32 characters.
+Environment variables:
+
+| Variable                  | Required | Description                                                                                                  |
+| ------------------------- | -------- | ------------------------------------------------------------------------------------------------------------ |
+| `DATABASE_CONNECTION_URL` | Yes      | SQLite (`file:local.db`) or remote libSQL/Turso database URL.                                                |
+| `DATABASE_AUTH_TOKEN`     | Remote   | Authentication token required for a remote database; leave empty for a local `file:` database.               |
+| `MAILER`                  | Yes      | Resend API key used for account and reservation emails.                                                      |
+| `CRON_SECRET`             | Prod     | Authenticates Vercel requests to `/api/internal/cleanup`; use a cryptographically random value of 32+ chars. |
+| `RATE_LIMIT_HASH_SECRET`  | Yes      | HMAC-hashes rate-limit identifiers; must be a random 32+ character value distinct from `CRON_SECRET`.        |
+| `LOG_LEVEL`               | No       | Pino log level; defaults to `debug` in development, `info` in production, and `silent` in tests.             |
+| `BASE_URL`                | No       | Base URL used by Playwright; defaults to `http://localhost:5173`.                                            |
+
+Links included in emails use the origin of the incoming request automatically. Never commit `.env`; configure production values in the Vercel Production environment.
 
 Prepare the database and start the development server:
 
@@ -59,6 +66,16 @@ Production builds and database migrations are intentionally separate.
 
 Do not put migration execution in Vercel's build command. Apply migrations once from a controlled deployment/release job before directing traffic to a release that requires them.
 
+## Production releases
+
+Vercel Git deployments are disabled in `vercel.json`. Production releases are manual and always deploy the latest commit from `main`:
+
+1. Add `VERCEL_TOKEN`, `VERCEL_ORG_ID`, and `VERCEL_PROJECT_ID` as GitHub Actions secrets.
+2. In GitHub, open **Actions → Release to production → Run workflow**.
+3. Apply any required database migrations separately before releasing code that depends on them.
+
+The workflow uses the GitHub `production` environment. Configure required reviewers for that environment if releases should require an approval step.
+
 ## Scheduled cleanup on Vercel
 
 `vercel.json` invokes `GET /api/internal/cleanup` daily at 03:00 UTC. Vercel sends `Authorization: Bearer <CRON_SECRET>` automatically when `CRON_SECRET` is configured for the project.
@@ -73,9 +90,6 @@ Deployment requirements:
 Cleanup operations are idempotent, but the categories are executed as separate database operations rather than one cross-table transaction. The response therefore reports partial progress accurately and does not claim cross-table atomicity. The existing authenticated admin clean action continues to call the same cleanup service.
 
 CI has explicit quality/build, unit-test, integration-test, and dependency-audit jobs. E2E is intentionally not part of CI until its server, database, and browser setup can run reliably in isolation.
-
-> [!IMPORTANT]
-> The application is ACTUALLY being used by Emiliano Lo Russo at **Emi Hair Club**. If you're near Siena, stop by for a cut :).
 
 ## License
 
