@@ -5,7 +5,7 @@
 </script>
 
 <section
-  class="border-border bg-card relative isolate flex min-h-[70dvh] overflow-hidden rounded-3xl border shadow-sm"
+  class="border-border bg-card relative isolate flex min-h-[70svh] overflow-hidden rounded-3xl border shadow-sm"
   aria-labelledby="home-hero-title"
 >
   <img
@@ -20,7 +20,7 @@
     aria-hidden="true"
   ></div>
 
-  <div class="relative z-10 flex min-h-[70dvh] w-full items-end p-6 sm:p-10 md:p-14 lg:p-16">
+  <div class="relative z-10 flex min-h-[70svh] w-full items-end p-6 sm:p-10 md:p-14 lg:p-16">
     <div class="max-w-4xl">
       <h1 id="home-hero-title" class="max-w-3xl typo-display text-balance text-white">
         Emi<br />Hair Club

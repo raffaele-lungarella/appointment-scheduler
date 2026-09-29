@@ -17,8 +17,6 @@
     "fmt:check": "prettier --check .",
     "lint": "eslint .",
     "preview": "vite preview",
-    "release": "pnpm build",
-    "release:migrate": "pnpm db:migrate",
     "test": "vitest run",
     "test:unit": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
