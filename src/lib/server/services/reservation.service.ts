@@ -6,6 +6,7 @@ import type { Database } from "$lib/server/db/client";
 import { getProductionDatabase } from "$lib/server/db/production";
 import * as table from "$lib/server/db/schema";
 import type { UserRow } from "$lib/server/db/schema";
+import { transactionResult, type Transaction } from "$lib/server/db/transaction";
 import type { AnonymousData, StaffData, UsualData } from "$lib/shared";
 import { parseDate, parseDateTime } from "@internationalized/date";
 import { anonymousUserSchema, staffUserSchema, usualUserSchema } from "@schema";
@@ -103,11 +104,11 @@ export class ReservationService extends Service {
     super();
   }
 
-  private getReservationRows() {
+  private getReservationRows(database: Database | Transaction = this.database) {
     const staffUser = alias(table.user, "staffUser");
     const customerUser = alias(table.user, "customerUser");
 
-    return this.database
+    return database
       .select({
         id: table.reservation.id,
         date: table.reservation.date,
@@ -161,8 +162,11 @@ export class ReservationService extends Service {
     return [...reservations.values()];
   }
 
-  private async findReservations(where: SQL | undefined) {
-    const rows = await this.getReservationRows().where(where);
+  private async findReservations(
+    where: SQL | undefined,
+    database: Database | Transaction = this.database,
+  ) {
+    const rows = await this.getReservationRows(database).where(where);
     return this.aggregateReservations(rows as ReservationRow[]);
   }
 
@@ -319,15 +323,7 @@ export class ReservationService extends Service {
       return err(inserted.error);
     }
 
-    const fullReservation = await this.getByID(reservation.id);
-    if (fullReservation.isErr()) {
-      logger.error(
-        { ...logContext, reservationId: reservation.id, error: fullReservation.error },
-        "post-insert fetch failed",
-      );
-      return err({ type: "server-error" });
-    }
-    return ok(fullReservation.value);
+    return inserted;
   }
 
   async getAll(): Promise<ServiceResult<ReservationDTO[], ReservationStorageError>> {
@@ -543,6 +539,336 @@ export class ReservationService extends Service {
     }
   }
 
+  private async insertWithAvailabilityCheck(
+    reservation: InsertReservation,
+    offeringIDs: string[],
+  ): Promise<Result<ReservationDTO, ReservationInsertError>> {
+    const maximumAttempts = 10;
+    for (let attempt = 1; attempt <= maximumAttempts; attempt++) {
+      try {
+        return await transactionResult(this.database, (tx) =>
+          this.insertInTransaction(tx, reservation, offeringIDs),
+        );
+      } catch (e) {
+        if (this.isDatabaseContention(e) && attempt < maximumAttempts) {
+          await new Promise((resolve) => setTimeout(resolve, attempt * 25));
+          continue;
+        }
+        logger.error({ err: e, reservationId: reservation.id }, "transactional insert failed");
+        return err({ type: "server-error" });
+      }
+    }
+    return err({ type: "server-error" });
+  }
+
+  private async insertInTransaction(
+    tx: Transaction,
+    reservation: InsertReservation,
+    offeringIDs: string[],
+  ): Promise<Result<ReservationDTO, ReservationInsertError>> {
+    const appointment = await this.validateAppointmentAndStaff(tx, reservation);
+    if (appointment.isErr()) return appointment;
+    const duration = await this.validateOfferingsAndCalculateDuration(tx, reservation, offeringIDs);
+    if (duration.isErr()) return duration;
+    const { requestedStart, day } = appointment.value;
+    const schedule = await this.validateScheduleAndShutdown(
+      tx,
+      reservation,
+      day,
+      requestedStart,
+      duration.value,
+    );
+    if (schedule.isErr()) return schedule;
+    const occupancy = await this.resolveOccupancyMask(
+      tx,
+      reservation,
+      requestedStart,
+      duration.value,
+    );
+    if (occupancy.isErr()) return occupancy;
+    const claim = await this.cleanupAndClaimOccupancy(tx, reservation, occupancy.value);
+    if (claim.isErr()) return claim;
+    await this.persistReservation(tx, reservation, offeringIDs, occupancy.value);
+    const [created] = await this.findReservations(eq(table.reservation.id, reservation.id), tx);
+    if (!created) {
+      logger.error({ reservationId: reservation.id }, "inserted reservation could not be read");
+      return err({ type: "server-error" });
+    }
+    return ok(created);
+  }
+
+  private async validateAppointmentAndStaff(
+    tx: Transaction,
+    reservation: InsertReservation,
+  ): Promise<Result<{ requestedStart: MinuteOfDay; day: number }, InvalidReservationInsertError>> {
+    const requestedStart = createMinuteOfDay(reservation.startMinute);
+    const appointment = this.parseAppointment(reservation.date, requestedStart);
+    if (!appointment) {
+      return this.rejectInvalidReservation(reservation, {
+        type: "invalid-data",
+        reason: "invalid-appointment-format",
+      });
+    }
+    if (appointment.startsAt.getTime() <= Date.now()) {
+      return this.rejectInvalidReservation(reservation, {
+        type: "invalid-data",
+        reason: "appointment-not-in-future",
+      });
+    }
+
+    const [activeStaff] = await tx
+      .select({ id: table.staff.userID })
+      .from(table.staff)
+      .where(and(eq(table.staff.userID, reservation.staffID), eq(table.staff.isActive, true)))
+      .limit(1);
+    if (!activeStaff) {
+      return this.rejectInvalidReservation(reservation, {
+        type: "invalid-data",
+        reason: "staff-not-active",
+      });
+    }
+
+    return ok({ requestedStart, day: appointment.day });
+  }
+
+  private async validateOfferingsAndCalculateDuration(
+    tx: Transaction,
+    reservation: InsertReservation,
+    offeringIDs: string[],
+  ): Promise<Result<number, InvalidReservationInsertError>> {
+    const requestedOfferings = await tx
+      .select({
+        id: table.offering.id,
+        duration: table.offering.duration,
+      })
+      .from(table.offering)
+      .where(
+        and(
+          inArray(table.offering.id, offeringIDs),
+          eq(table.offering.staffID, reservation.staffID),
+          eq(table.offering.active, true),
+        ),
+      );
+
+    if (requestedOfferings.length !== offeringIDs.length) {
+      return this.rejectInvalidReservation(reservation, {
+        type: "invalid-data",
+        reason: "offerings-unavailable-for-staff",
+        requestedOfferingIDs: offeringIDs,
+        availableOfferingIDs: requestedOfferings.map(({ id }) => id),
+      });
+    }
+
+    const requestedDuration = requestedOfferings.reduce(
+      (sum, offering) => sum + offering.duration,
+      0,
+    );
+
+    if (
+      requestedOfferings.some(
+        (offering) => !Number.isInteger(offering.duration) || offering.duration <= 0,
+      )
+    ) {
+      return this.rejectInvalidReservation(reservation, {
+        type: "invalid-data",
+        reason: "invalid-offering-duration",
+        offerings: requestedOfferings.map(({ id, duration }) => ({ id, duration })),
+      });
+    }
+
+    return ok(requestedDuration);
+  }
+
+  private async validateScheduleAndShutdown(
+    tx: Transaction,
+    reservation: InsertReservation,
+    day: number,
+    requestedStart: MinuteOfDay,
+    requestedDuration: number,
+  ): Promise<Result<void, InvalidReservationInsertError>> {
+    const requestedEnd = requestedStart + requestedDuration;
+    const scheduleRanges = await tx
+      .select({
+        startHour: table.schedule.startHour,
+        startMinute: table.schedule.startMinute,
+        endHour: table.schedule.endHour,
+        endMinute: table.schedule.endMinute,
+      })
+      .from(table.schedule)
+      .where(and(eq(table.schedule.staffID, reservation.staffID), eq(table.schedule.day, day)));
+    const containedBySchedule = scheduleRanges.some((range) => {
+      const rangeStart = range.startHour * 60 + range.startMinute;
+      const rangeEnd = range.endHour * 60 + range.endMinute;
+      return requestedStart >= rangeStart && requestedEnd <= rangeEnd;
+    });
+    if (!containedBySchedule) {
+      return this.rejectInvalidReservation(reservation, {
+        type: "invalid-data",
+        reason: "outside-staff-schedule",
+        requestedStartMinutes: requestedStart,
+        requestedEndMinutes: requestedEnd,
+        scheduleRanges,
+      });
+    }
+
+    const [shutdown] = await tx
+      .select({ id: table.shutdowns.id })
+      .from(table.shutdowns)
+      .where(
+        and(
+          eq(table.shutdowns.staffID, reservation.staffID),
+          sql`${table.shutdowns.start} <= ${reservation.date}`,
+          sql`${table.shutdowns.end} >= ${reservation.date}`,
+        ),
+      )
+      .limit(1);
+    if (shutdown) {
+      return this.rejectInvalidReservation(reservation, {
+        type: "invalid-data",
+        reason: "staff-shutdown",
+        shutdownID: shutdown.id,
+      });
+    }
+
+    return ok(undefined);
+  }
+
+  private async resolveOccupancyMask(
+    tx: Transaction,
+    reservation: InsertReservation,
+    requestedStart: MinuteOfDay,
+    requestedDuration: number,
+  ): Promise<Result<OccupancyMask, InvalidReservationInsertError>> {
+    // An existing day keeps its slot duration even if the effective policy has changed.
+    const resolved = await tx.get<{ slotDurationMinutes: number | null }>(sql`
+      SELECT COALESCE(
+        (SELECT ${table.reservationDayOccupancy.slotDurationMinutes}
+         FROM ${table.reservationDayOccupancy}
+         WHERE ${table.reservationDayOccupancy.staffID} = ${reservation.staffID}
+           AND ${table.reservationDayOccupancy.date} = ${reservation.date}),
+        (SELECT ${table.reservationSlotPolicy.slotDurationMinutes}
+         FROM ${table.reservationSlotPolicy}
+         WHERE ${table.reservationSlotPolicy.effectiveFromDate} <= ${reservation.date}
+         ORDER BY ${table.reservationSlotPolicy.effectiveFromDate} DESC
+         LIMIT 1)
+      ) AS slotDurationMinutes
+    `);
+    const slotDurationMinutes = resolved?.slotDurationMinutes;
+    if (!slotDurationMinutes) {
+      return this.rejectInvalidReservation(reservation, {
+        type: "invalid-data",
+        reason: "slot-policy-not-configured",
+      });
+    }
+
+    const occupancy = this.createOccupancyMask(
+      requestedStart,
+      requestedDuration,
+      slotDurationMinutes,
+    );
+    if (!occupancy) {
+      return this.rejectInvalidReservation(reservation, {
+        type: "invalid-data",
+        reason: "appointment-not-slot-aligned",
+        requestedStartMinutes: requestedStart,
+        requestedDurationMinutes: requestedDuration,
+        slotDurationMinutes,
+      });
+    }
+
+    return ok(occupancy);
+  }
+
+  private async cleanupAndClaimOccupancy(
+    tx: Transaction,
+    reservation: InsertReservation,
+    occupancy: OccupancyMask,
+  ): Promise<Result<void, Extract<ReservationInsertError, { type: "conflict" }>>> {
+    await tx
+      .delete(table.reservation)
+      .where(
+        and(
+          eq(table.reservation.staffID, reservation.staffID),
+          eq(table.reservation.date, reservation.date),
+          lt(table.reservation.expiresAt, new Date()),
+        ),
+      );
+
+    await tx
+      .insert(table.reservationDayOccupancy)
+      .values({
+        staffID: reservation.staffID,
+        date: reservation.date,
+        slotDurationMinutes: occupancy.slotDurationMinutes,
+      })
+      .onConflictDoNothing();
+
+    const claimed = await tx.all<{ staffID: string }>(sql`
+          UPDATE reservation_day_occupancy
+          SET
+            bits_low = bits_low | ${occupancy.bitsLow},
+            bits_high = bits_high | ${occupancy.bitsHigh},
+            updated_at = unixepoch()
+          WHERE staff_id = ${reservation.staffID}
+            AND date = ${reservation.date}
+            AND slot_duration_minutes = ${occupancy.slotDurationMinutes}
+            AND (bits_low & ${occupancy.bitsLow}) = 0
+            AND (bits_high & ${occupancy.bitsHigh}) = 0
+          RETURNING staff_id AS staffID
+        `);
+    if (claimed.length !== 1) {
+      return err({ type: "conflict", reason: "slots-occupied" });
+    }
+    return ok(undefined);
+  }
+
+  private async persistReservation(
+    tx: Transaction,
+    reservation: InsertReservation,
+    offeringIDs: string[],
+    occupancy: OccupancyMask,
+  ): Promise<void> {
+    await tx.insert(table.reservation).values({
+      ...reservation,
+      slotDurationMinutes: occupancy.slotDurationMinutes,
+      slotStart: occupancy.slotStart,
+      slotCount: occupancy.slotCount,
+      occupancyBitsLow: occupancy.bitsLow,
+      occupancyBitsHigh: occupancy.bitsHigh,
+    });
+    await tx.insert(table.reservationOffering).values(
+      offeringIDs.map((offeringID, position) => ({
+        reservationID: reservation.id,
+        offeringID,
+        position,
+      })),
+    );
+  }
+
+  private parseAppointment(
+    date: string,
+    startMinute: MinuteOfDay,
+  ): { startsAt: Date; day: number } | null {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+
+    try {
+      const calendarDate = parseDate(date);
+      const startsAt = parseDateTime(`${date}T${formatMinuteOfDay(startMinute)}`).toDate(
+        BUSINESS_TIME_ZONE,
+      );
+      // Database weekdays are Monday=0 through Sunday=6.
+      const day =
+        (new Date(
+          Date.UTC(calendarDate.year, calendarDate.month - 1, calendarDate.day),
+        ).getUTCDay() +
+          6) %
+        7;
+      return { startsAt, day };
+    } catch {
+      return null;
+    }
+  }
+
   private createOccupancyMask(
     startMinutes: number,
     durationMinutes: number,
@@ -578,39 +904,10 @@ export class ReservationService extends Service {
     };
   }
 
-  private parseAppointment(
-    date: string,
-    startMinute: MinuteOfDay,
-  ): { startsAt: Date; day: number } | null {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
-
-    try {
-      const calendarDate = parseDate(date);
-      const startsAt = parseDateTime(`${date}T${formatMinuteOfDay(startMinute)}`).toDate(
-        BUSINESS_TIME_ZONE,
-      );
-      // Database weekdays are Monday=0 through Sunday=6.
-      const day =
-        (new Date(
-          Date.UTC(calendarDate.year, calendarDate.month - 1, calendarDate.day),
-        ).getUTCDay() +
-          6) %
-        7;
-      return { startsAt, day };
-    } catch {
-      return null;
-    }
-  }
-
-  private isDatabaseContention(error: unknown): boolean {
-    const message = error instanceof Error ? error.message : String(error);
-    return /SQLITE_BUSY|database is locked|transaction conflict/i.test(message);
-  }
-
   private rejectInvalidReservation<E extends InvalidReservationInsertError>(
     reservation: InsertReservation,
     error: E,
-  ): Result<table.ReservationRow, E> {
+  ): Result<never, E> {
     logger.warn(
       {
         error,
@@ -624,237 +921,8 @@ export class ReservationService extends Service {
     return err(error);
   }
 
-  private async insertWithAvailabilityCheck(
-    reservation: InsertReservation,
-    offeringIDs: string[],
-  ): Promise<Result<table.ReservationRow, ReservationInsertError>> {
-    const maximumAttempts = 10;
-    for (let attempt = 1; attempt <= maximumAttempts; attempt++) {
-      try {
-        return await this.database.transaction(async (tx) => {
-          const requestedStart = createMinuteOfDay(reservation.startMinute);
-          const appointment = this.parseAppointment(reservation.date, requestedStart);
-          if (!appointment) {
-            return this.rejectInvalidReservation(reservation, {
-              type: "invalid-data",
-              reason: "invalid-appointment-format",
-            });
-          }
-          if (appointment.startsAt.getTime() <= Date.now()) {
-            return this.rejectInvalidReservation(reservation, {
-              type: "invalid-data",
-              reason: "appointment-not-in-future",
-            });
-          }
-
-          const [activeStaff] = await tx
-            .select({ id: table.staff.userID })
-            .from(table.staff)
-            .where(and(eq(table.staff.userID, reservation.staffID), eq(table.staff.isActive, true)))
-            .limit(1);
-          if (!activeStaff) {
-            return this.rejectInvalidReservation(reservation, {
-              type: "invalid-data",
-              reason: "staff-not-active",
-            });
-          }
-
-          const requestedOfferings = await tx
-            .select({
-              id: table.offering.id,
-              duration: table.offering.duration,
-            })
-            .from(table.offering)
-            .where(
-              and(
-                inArray(table.offering.id, offeringIDs),
-                eq(table.offering.staffID, reservation.staffID),
-                eq(table.offering.active, true),
-              ),
-            );
-
-          if (requestedOfferings.length !== offeringIDs.length) {
-            return this.rejectInvalidReservation(reservation, {
-              type: "invalid-data",
-              reason: "offerings-unavailable-for-staff",
-              requestedOfferingIDs: offeringIDs,
-              availableOfferingIDs: requestedOfferings.map(({ id }) => id),
-            });
-          }
-
-          const requestedDuration = requestedOfferings.reduce(
-            (sum, offering) => sum + offering.duration,
-            0,
-          );
-          const requestedEnd = requestedStart + requestedDuration;
-          if (
-            requestedOfferings.some(
-              (offering) => !Number.isInteger(offering.duration) || offering.duration <= 0,
-            )
-          ) {
-            return this.rejectInvalidReservation(reservation, {
-              type: "invalid-data",
-              reason: "invalid-offering-duration",
-              offerings: requestedOfferings.map(({ id, duration }) => ({ id, duration })),
-            });
-          }
-
-          const scheduleRanges = await tx
-            .select({
-              startHour: table.schedule.startHour,
-              startMinute: table.schedule.startMinute,
-              endHour: table.schedule.endHour,
-              endMinute: table.schedule.endMinute,
-            })
-            .from(table.schedule)
-            .where(
-              and(
-                eq(table.schedule.staffID, reservation.staffID),
-                eq(table.schedule.day, appointment.day),
-              ),
-            );
-          const containedBySchedule = scheduleRanges.some((range) => {
-            const rangeStart = range.startHour * 60 + range.startMinute;
-            const rangeEnd = range.endHour * 60 + range.endMinute;
-            return requestedStart >= rangeStart && requestedEnd <= rangeEnd;
-          });
-          if (!containedBySchedule) {
-            return this.rejectInvalidReservation(reservation, {
-              type: "invalid-data",
-              reason: "outside-staff-schedule",
-              requestedStartMinutes: requestedStart,
-              requestedEndMinutes: requestedEnd,
-              scheduleRanges,
-            });
-          }
-
-          const [shutdown] = await tx
-            .select({ id: table.shutdowns.id })
-            .from(table.shutdowns)
-            .where(
-              and(
-                eq(table.shutdowns.staffID, reservation.staffID),
-                sql`${table.shutdowns.start} <= ${reservation.date}`,
-                sql`${table.shutdowns.end} >= ${reservation.date}`,
-              ),
-            )
-            .limit(1);
-          if (shutdown) {
-            return this.rejectInvalidReservation(reservation, {
-              type: "invalid-data",
-              reason: "staff-shutdown",
-              shutdownID: shutdown.id,
-            });
-          }
-
-          const existingOccupancy = await tx
-            .select({ slotDurationMinutes: table.reservationDayOccupancy.slotDurationMinutes })
-            .from(table.reservationDayOccupancy)
-            .where(
-              and(
-                eq(table.reservationDayOccupancy.staffID, reservation.staffID),
-                eq(table.reservationDayOccupancy.date, reservation.date),
-              ),
-            )
-            .get();
-          const policy = existingOccupancy
-            ? null
-            : await tx
-                .select({ slotDurationMinutes: table.reservationSlotPolicy.slotDurationMinutes })
-                .from(table.reservationSlotPolicy)
-                .where(sql`${table.reservationSlotPolicy.effectiveFromDate} <= ${reservation.date}`)
-                .orderBy(sql`${table.reservationSlotPolicy.effectiveFromDate} DESC`)
-                .limit(1)
-                .get();
-          const slotDurationMinutes =
-            existingOccupancy?.slotDurationMinutes ?? policy?.slotDurationMinutes;
-          if (!slotDurationMinutes) {
-            return this.rejectInvalidReservation(reservation, {
-              type: "invalid-data",
-              reason: "slot-policy-not-configured",
-            });
-          }
-
-          const occupancy = this.createOccupancyMask(
-            requestedStart,
-            requestedDuration,
-            slotDurationMinutes,
-          );
-          if (!occupancy) {
-            return this.rejectInvalidReservation(reservation, {
-              type: "invalid-data",
-              reason: "appointment-not-slot-aligned",
-              requestedStartMinutes: requestedStart,
-              requestedDurationMinutes: requestedDuration,
-              slotDurationMinutes,
-            });
-          }
-
-          await tx
-            .delete(table.reservation)
-            .where(
-              and(
-                eq(table.reservation.staffID, reservation.staffID),
-                eq(table.reservation.date, reservation.date),
-                lt(table.reservation.expiresAt, new Date()),
-              ),
-            );
-
-          await tx
-            .insert(table.reservationDayOccupancy)
-            .values({
-              staffID: reservation.staffID,
-              date: reservation.date,
-              slotDurationMinutes,
-            })
-            .onConflictDoNothing();
-
-          const claimed = await tx.all<{ staffID: string }>(sql`
-          UPDATE reservation_day_occupancy
-          SET
-            bits_low = bits_low | ${occupancy.bitsLow},
-            bits_high = bits_high | ${occupancy.bitsHigh},
-            updated_at = unixepoch()
-          WHERE staff_id = ${reservation.staffID}
-            AND date = ${reservation.date}
-            AND slot_duration_minutes = ${occupancy.slotDurationMinutes}
-            AND (bits_low & ${occupancy.bitsLow}) = 0
-            AND (bits_high & ${occupancy.bitsHigh}) = 0
-          RETURNING staff_id AS staffID
-        `);
-          if (claimed.length !== 1) {
-            return err({ type: "conflict", reason: "slots-occupied" });
-          }
-
-          const [inserted] = await tx
-            .insert(table.reservation)
-            .values({
-              ...reservation,
-              slotDurationMinutes: occupancy.slotDurationMinutes,
-              slotStart: occupancy.slotStart,
-              slotCount: occupancy.slotCount,
-              occupancyBitsLow: occupancy.bitsLow,
-              occupancyBitsHigh: occupancy.bitsHigh,
-            })
-            .returning();
-          await tx.insert(table.reservationOffering).values(
-            offeringIDs.map((offeringID, position) => ({
-              reservationID: reservation.id,
-              offeringID,
-              position,
-            })),
-          );
-          return ok(inserted);
-        });
-      } catch (e) {
-        if (this.isDatabaseContention(e) && attempt < maximumAttempts) {
-          await new Promise((resolve) => setTimeout(resolve, attempt * 25));
-          continue;
-        }
-        logger.error({ err: e, reservationId: reservation.id }, "transactional insert failed");
-        return err({ type: "server-error" });
-      }
-    }
-    return err({ type: "server-error" });
+  private isDatabaseContention(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error);
+    return /SQLITE_BUSY|database is locked|transaction conflict/i.test(message);
   }
 }

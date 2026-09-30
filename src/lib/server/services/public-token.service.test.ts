@@ -64,6 +64,12 @@ describe("public token primitives", () => {
     expect(isIssuePublicTokenInput(input)).toBe(false);
   });
 
+  it("matches the SHA-256 lowercase hex format used by stored tokens", () => {
+    expect(hashPublicToken("abc")).toBe(
+      "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+    );
+  });
+
   it("hashes tokens deterministically without retaining the raw token", () => {
     const token = "pr_example-token";
     const hash = hashPublicToken(token);

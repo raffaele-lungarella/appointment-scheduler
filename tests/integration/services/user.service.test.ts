@@ -165,6 +165,25 @@ describe("UserService", () => {
     expect(await testDatabase.database.select().from(table.publicToken)).toEqual([]);
   });
 
+  it("preserves guest reservations when the account to delete is missing", async () => {
+    await seedStaff(testDatabase.database);
+    await testDatabase.database.insert(table.reservation).values({
+      id: "guest-reservation",
+      date: "2099-06-15",
+      hour: "10:00",
+      startMinute: 600,
+      name: "Guest",
+      email: "guest@example.com",
+      staffID: "staff-1",
+      expiresAt: new Date("2099-06-16T00:00:00.000Z"),
+    });
+    const before = await testDatabase.database.select().from(table.reservation);
+
+    expect(await service.deleteAccount("missing-user", " GUEST@EXAMPLE.COM ")).toBeFalsy();
+
+    expect(await testDatabase.database.select().from(table.reservation)).toEqual(before);
+  });
+
   it("counts and deletes only expired unverified users", async () => {
     await seedUser(testDatabase.database, { id: "expired", email: "expired@example.com" });
     await seedUser(testDatabase.database, { id: "future", email: "future@example.com" });

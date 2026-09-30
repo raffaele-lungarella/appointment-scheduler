@@ -189,6 +189,69 @@ describe("PublicTokenService", () => {
     expect(reservation).toMatchObject({ pending: false });
   });
 
+  it.each([
+    { purpose: "account_verification", method: "verifyAccount" },
+    { purpose: "password_reset", method: "resetPassword" },
+    { purpose: "reservation_confirmation", method: "confirmReservation" },
+  ] as const)(
+    "rolls back consumption of a malformed $purpose token",
+    async ({ purpose, method }) => {
+      const rawToken = "malformed-token";
+      const tokenHash = hashPublicToken(rawToken);
+      await testDatabase.database.insert(table.publicToken).values({
+        tokenHash,
+        purpose,
+        userID: null,
+        reservationID: null,
+        expiresAt: new Date("2099-06-15T12:00:00.000Z"),
+      });
+
+      const result = await service[method](rawToken, "replacement-hash");
+
+      expect(result).toMatchObject({ kind: "err", error: { type: "invalid-input" } });
+      const token = await testDatabase.database
+        .select()
+        .from(table.publicToken)
+        .where(eq(table.publicToken.tokenHash, tokenHash))
+        .get();
+      expect(token).toMatchObject({ consumedAt: null });
+    },
+  );
+
+  it.each([null, ""])(
+    "rolls back consumption of an email-change token with pendingEmail %j",
+    async (pendingEmail) => {
+      const rawToken = "malformed-email-change-token";
+      const tokenHash = hashPublicToken(rawToken);
+      const expiresAt = new Date("2099-06-15T12:00:00.000Z");
+      await testDatabase.database.insert(table.publicToken).values({
+        tokenHash,
+        purpose: "email_change",
+        userID: "user-1",
+        pendingEmail,
+        expiresAt,
+      });
+      await testDatabase.database.insert(table.session).values([
+        { id: "current-session", userID: "user-1", expiresAt },
+        { id: "other-session", userID: "user-1", expiresAt },
+      ]);
+      const usersBefore = await testDatabase.database.select().from(table.user);
+      const sessionsBefore = await testDatabase.database.select().from(table.session);
+
+      const result = await service.confirmEmailChange(rawToken, "user-1", "current-session");
+
+      expect(result).toMatchObject({ kind: "err", error: { type: "invalid-input" } });
+      const token = await testDatabase.database
+        .select()
+        .from(table.publicToken)
+        .where(eq(table.publicToken.tokenHash, tokenHash))
+        .get();
+      expect(token).toMatchObject({ consumedAt: null });
+      expect(await testDatabase.database.select().from(table.user)).toEqual(usersBefore);
+      expect(await testDatabase.database.select().from(table.session)).toEqual(sessionsBefore);
+    },
+  );
+
   it("replaces an unconsumed token for the same user and purpose", async () => {
     const first = await service.issue({
       purpose: "email_change",
