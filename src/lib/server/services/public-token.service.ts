@@ -3,15 +3,18 @@ import type { Database } from "$lib/server/db/client";
 import { getProductionDatabase } from "$lib/server/db/production";
 import * as table from "$lib/server/db/schema";
 import { createLogger } from "$lib/server/logger";
-import { sha256 } from "@oslojs/crypto/sha2";
-import { encodeBase64url, encodeHexLowerCase } from "@oslojs/encoding";
+import { encodeBase64url } from "@oslojs/encoding";
 import { and, eq, gt, isNull, lt, sql } from "drizzle-orm";
+import { createHash } from "node:crypto";
 
 import { reservationExpiresAt } from "./reservation.service";
 import { Service } from "./service";
 import type { AffectedRows, ServiceResult } from "./service-result";
 
 const logger = createLogger("PublicTokenService");
+
+// Reject malformed payloads after consumption without committing the token update.
+const malformedToken = new Error("Public token payload is malformed");
 
 export const publicTokenPurposes = [
   "reservation_access",
@@ -108,7 +111,7 @@ const tokenPrefixes: Record<PublicTokenPurpose, string> = {
 };
 
 export function hashPublicToken(token: string) {
-  return encodeHexLowerCase(sha256(new TextEncoder().encode(token)));
+  return createHash("sha256").update(token).digest("hex");
 }
 
 export function generatePublicToken(purpose: PublicTokenPurpose) {
@@ -237,7 +240,8 @@ export class PublicTokenService extends Service {
             .returning({ userID: table.publicToken.userID })
             .get();
 
-          if (!token?.userID) return null;
+          if (!token) return null;
+          if (!token.userID) throw malformedToken;
 
           const user = await tx
             .update(table.user)
@@ -251,6 +255,7 @@ export class PublicTokenService extends Service {
         })
         .then((user) => (user ? ok(user) : err({ type: "invalid-input" })));
     } catch (error) {
+      if (error === malformedToken) return err({ type: "invalid-input" });
       logger.error({ err: error, tokenHash }, "verifyAccount failed");
       return err({ type: "storage-error" });
     }
@@ -281,7 +286,8 @@ export class PublicTokenService extends Service {
             .returning({ pendingEmail: table.publicToken.pendingEmail })
             .get();
 
-          if (!token?.pendingEmail) return null;
+          if (!token) return null;
+          if (!token.pendingEmail) throw malformedToken;
 
           const user = await tx
             .update(table.user)
@@ -304,6 +310,7 @@ export class PublicTokenService extends Service {
         })
         .then((user) => (user ? ok(user) : err({ type: "invalid-input" })));
     } catch (error) {
+      if (error === malformedToken) return err({ type: "invalid-input" });
       logger.error({ err: error, tokenHash, userId: userID }, "confirmEmailChange failed");
       return err({ type: "storage-error" });
     }
@@ -332,7 +339,8 @@ export class PublicTokenService extends Service {
             .returning({ userID: table.publicToken.userID })
             .get();
 
-          if (!token?.userID) return null;
+          if (!token) return null;
+          if (!token.userID) throw malformedToken;
 
           const user = await tx
             .update(table.user)
@@ -347,6 +355,7 @@ export class PublicTokenService extends Service {
         })
         .then((userID) => (userID ? ok(userID) : err({ type: "invalid-input" })));
     } catch (error) {
+      if (error === malformedToken) return err({ type: "invalid-input" });
       logger.error({ err: error, tokenHash }, "resetPassword failed");
       return err({ type: "storage-error" });
     }
@@ -373,7 +382,8 @@ export class PublicTokenService extends Service {
           .returning({ reservationID: table.publicToken.reservationID })
           .get();
 
-        if (!token?.reservationID) return null;
+        if (!token) return null;
+        if (!token.reservationID) throw malformedToken;
 
         const reservationDate = await tx
           .select({ date: table.reservation.date })
@@ -403,6 +413,7 @@ export class PublicTokenService extends Service {
 
       return reservationID ? ok(reservationID) : err({ type: "invalid-input" });
     } catch (error) {
+      if (error === malformedToken) return err({ type: "invalid-input" });
       logger.error({ err: error, tokenHash }, "confirmReservation failed");
       return err({ type: "storage-error" });
     }

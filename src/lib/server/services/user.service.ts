@@ -243,7 +243,9 @@ export class UserService extends Service {
             ),
           );
 
-        return await tx.delete(table.user).where(eq(table.user.id, id)).returning().get();
+        const deleted = await tx.delete(table.user).where(eq(table.user.id, id)).returning().get();
+        if (!deleted) throw new Error("Account is missing");
+        return deleted;
       });
     } catch (e) {
       logger.error({ err: e, userId: id }, "deleteAccount failed");

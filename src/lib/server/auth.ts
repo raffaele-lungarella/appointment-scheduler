@@ -3,12 +3,12 @@ import { db } from "$lib/server/db";
 import * as table from "$lib/server/db/schema";
 import type { UserSession } from "$lib/server/domain";
 import { createLogger } from "$lib/server/logger";
-import { sha256 } from "@oslojs/crypto/sha2";
-import { encodeBase64url, encodeHexLowerCase } from "@oslojs/encoding";
+import { encodeBase64url } from "@oslojs/encoding";
 import { SessionService } from "@service/session.service";
 import { UserService } from "@service/user.service";
 import type { RequestEvent } from "@sveltejs/kit";
 import { eq } from "drizzle-orm";
+import { createHash } from "node:crypto";
 
 const log = createLogger("auth");
 
@@ -21,7 +21,7 @@ export function generateSessionToken() {
 }
 
 export async function createSession(token: string, userID: string) {
-  const sessionId = encodeHexLowerCase(sha256(new TextEncoder().encode(token)));
+  const sessionId = createHash("sha256").update(token).digest("hex");
   const session: table.NewSessionRow = {
     id: sessionId,
     userID,
@@ -40,7 +40,7 @@ export async function createSession(token: string, userID: string) {
 export async function validateSessionToken(
   token: string,
 ): Promise<UserSession | { session: null; user: null }> {
-  const sessionID = encodeHexLowerCase(sha256(new TextEncoder().encode(token)));
+  const sessionID = createHash("sha256").update(token).digest("hex");
   const sessionResult = await SessionService.get().getByID(sessionID);
 
   if (sessionResult.isErr()) {

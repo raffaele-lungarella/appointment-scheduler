@@ -5,7 +5,7 @@ import {
   ReservationService,
 } from "$lib/server/services/reservation.service";
 import { eq } from "drizzle-orm";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createTestDatabase, type TestDatabase } from "../../support/database";
 import { seedOffering, seedStaff, seedUser } from "../../support/fixtures";
@@ -279,6 +279,205 @@ describe("ReservationService", () => {
     expect(await testDatabase.database.select().from(table.reservation)).toHaveLength(2);
   });
 
+  it("rolls back expired-reservation cleanup and occupancy release when slots are occupied", async () => {
+    const booking = {
+      who: "anonymous" as const,
+      name: "Customer",
+      email: "customer@example.com",
+      date: "2099-06-15",
+      startMinute: createMinuteOfDay(600),
+      offerings: ["haircut"],
+      staff: "staff-1",
+    };
+    const expired = await service.insertByAnonymous(booking);
+    expect(expired.isOk()).toBe(true);
+    if (expired.isErr()) throw new Error(`Insertion failed: ${expired.error}`);
+    const active = await service.insertByAnonymous({
+      ...booking,
+      startMinute: createMinuteOfDay(630),
+    });
+    expect(active.isOk()).toBe(true);
+    await testDatabase.database
+      .update(table.reservation)
+      .set({ expiresAt: new Date(0) })
+      .where(eq(table.reservation.id, expired.value.id));
+
+    const reservations = await testDatabase.database.select().from(table.reservation);
+    const offerings = await testDatabase.database.select().from(table.reservationOffering);
+    const occupancy = await testDatabase.database.select().from(table.reservationDayOccupancy);
+    expect(reservations).toHaveLength(2);
+    expect(offerings).toHaveLength(2);
+    expect(occupancy).toHaveLength(1);
+
+    const result = await service.insertByAnonymous({
+      ...booking,
+      startMinute: createMinuteOfDay(615),
+    });
+
+    expect(result.isErr()).toBe(true);
+    if (result.isOk()) throw new Error("Expected occupied slots to reject insertion");
+    expect(result.error).toEqual({ type: "conflict", reason: "slots-occupied" });
+    expect(await testDatabase.database.select().from(table.reservation)).toEqual(reservations);
+    expect(await testDatabase.database.select().from(table.reservationOffering)).toEqual(offerings);
+    expect(await testDatabase.database.select().from(table.reservationDayOccupancy)).toEqual(
+      occupancy,
+    );
+
+    const replacement = await service.insertByAnonymous(booking);
+    expect(replacement.isOk()).toBe(true);
+    expect(
+      await testDatabase.database
+        .select()
+        .from(table.reservation)
+        .where(eq(table.reservation.id, expired.value.id)),
+    ).toEqual([]);
+  });
+
+  it("rolls back the reservation and claimed slots when inserting reservation offerings fails", async () => {
+    const booking = {
+      who: "anonymous" as const,
+      name: "Customer",
+      email: "customer@example.com",
+      date: "2099-06-15",
+      startMinute: createMinuteOfDay(600),
+      offerings: ["haircut", "beard"],
+      staff: "staff-1",
+    };
+    // Use a database trigger so it also applies to the transaction's connection.
+    await testDatabase.database.run(`
+      CREATE TRIGGER fail_reservation_offering_insert
+      BEFORE INSERT ON reservation_offering
+      WHEN EXISTS (
+        SELECT 1 FROM reservation AS r
+        JOIN reservation_day_occupancy AS o
+          ON o.staff_id = r.staff_id AND o.date = r.date
+        WHERE r.id = NEW.reservation_id
+          AND (o.bits_low & r.occupancy_bits_low) = r.occupancy_bits_low
+          AND (o.bits_high & r.occupancy_bits_high) = r.occupancy_bits_high
+          AND (r.occupancy_bits_low != 0 OR r.occupancy_bits_high != 0)
+      )
+      BEGIN
+        SELECT RAISE(ABORT, 'forced reservation offering insert failure');
+      END
+    `);
+    try {
+      const result = await service.insertByAnonymous(booking);
+
+      expect(result.isErr()).toBe(true);
+      if (result.isOk()) throw new Error("Expected reservation offering insertion to fail");
+      expect(result.error).toEqual({ type: "server-error" });
+      expect(await testDatabase.database.select().from(table.reservation)).toEqual([]);
+      expect(await testDatabase.database.select().from(table.reservationOffering)).toEqual([]);
+      expect(await testDatabase.database.select().from(table.reservationDayOccupancy)).toEqual([]);
+    } finally {
+      await testDatabase.database.run("DROP TRIGGER fail_reservation_offering_insert");
+    }
+
+    const retry = await service.insertByAnonymous(booking);
+    expect(retry.isOk()).toBe(true);
+    if (retry.isErr()) throw new Error(`Retry failed: ${retry.error}`);
+    expect(await testDatabase.database.select().from(table.reservation)).toHaveLength(1);
+    expect(await testDatabase.database.select().from(table.reservationOffering)).toEqual([
+      { reservationID: retry.value.id, offeringID: "haircut", position: 0 },
+      { reservationID: retry.value.id, offeringID: "beard", position: 1 },
+    ]);
+    expect(await testDatabase.database.select().from(table.reservationDayOccupancy)).toHaveLength(
+      1,
+    );
+  });
+
+  it("rolls back the reservation and claimed slots when final DTO hydration finds no reservation", async () => {
+    const booking = {
+      who: "anonymous" as const,
+      name: "Customer",
+      email: "missing-dto@example.com",
+      date: "2099-06-15",
+      startMinute: createMinuteOfDay(600),
+      offerings: ["haircut"],
+      staff: "staff-1",
+    };
+    // This trigger exists only in this test's temporary database.
+    await testDatabase.database.run(`
+      CREATE TRIGGER remove_reservation_offering_before_hydration
+      AFTER INSERT ON reservation_offering
+      WHEN EXISTS (
+        SELECT 1 FROM reservation
+        WHERE id = NEW.reservation_id AND email = 'missing-dto@example.com'
+      )
+      BEGIN
+        DELETE FROM reservation_offering
+        WHERE reservation_id = NEW.reservation_id AND offering_id = NEW.offering_id;
+      END
+    `);
+    try {
+      const result = await service.insertByAnonymous(booking);
+
+      expect(result.isErr() && result.error).toEqual({ type: "server-error" });
+      expect(await testDatabase.database.select().from(table.reservation)).toEqual([]);
+      expect(await testDatabase.database.select().from(table.reservationOffering)).toEqual([]);
+      expect(await testDatabase.database.select().from(table.reservationDayOccupancy)).toEqual([]);
+    } finally {
+      await testDatabase.database.run("DROP TRIGGER remove_reservation_offering_before_hydration");
+    }
+
+    const retry = await service.insertByAnonymous(booking);
+    expect(retry.isOk()).toBe(true);
+  });
+
+  it("rolls back when the final DTO SELECT fails and allows retrying the same slots", async () => {
+    const booking = {
+      who: "anonymous" as const,
+      name: "Customer",
+      email: "failed-dto@example.com",
+      date: "2099-06-15",
+      startMinute: createMinuteOfDay(600),
+      offerings: ["beard", "haircut"],
+      staff: "staff-1",
+    };
+    const client = testDatabase.database.$client;
+    const transaction = client.transaction.bind(client);
+    const hydrationFailure = vi.fn(() => {
+      throw new Error("forced final reservation DTO SELECT failure");
+    });
+    const transactionSpy = vi.spyOn(client, "transaction").mockImplementation(async (...args) => {
+      const tx = await transaction(...args);
+      const execute = tx.execute.bind(tx);
+      vi.spyOn(tx, "execute").mockImplementation(async (statement) => {
+        const query = typeof statement === "string" ? statement : statement.sql;
+        // Match the DTO join, not availability checks, writes, or rollback statements.
+        if (/^\s*select\b/i.test(query) && /\binner join "reservation_offering"\s/i.test(query)) {
+          hydrationFailure();
+        }
+        return execute(statement);
+      });
+      return tx;
+    });
+    try {
+      const result = await service.insertByAnonymous(booking);
+
+      expect(hydrationFailure).toHaveBeenCalledTimes(1);
+      expect(result.isErr() && result.error).toEqual({ type: "server-error" });
+      expect(await testDatabase.database.select().from(table.reservation)).toEqual([]);
+      expect(await testDatabase.database.select().from(table.reservationOffering)).toEqual([]);
+      expect(await testDatabase.database.select().from(table.reservationDayOccupancy)).toEqual([]);
+    } finally {
+      transactionSpy.mockRestore();
+    }
+
+    const retry = await service.insertByAnonymous(booking);
+    expect(retry.isOk()).toBe(true);
+    if (retry.isErr()) throw new Error(`Retry failed: ${retry.error}`);
+    expect(retry.value.offerings.map((offering) => offering.id)).toEqual(["beard", "haircut"]);
+    expect(await testDatabase.database.select().from(table.reservation)).toHaveLength(1);
+    expect(await testDatabase.database.select().from(table.reservationOffering)).toEqual([
+      { reservationID: retry.value.id, offeringID: "beard", position: 0 },
+      { reservationID: retry.value.id, offeringID: "haircut", position: 1 },
+    ]);
+    expect(await testDatabase.database.select().from(table.reservationDayOccupancy)).toHaveLength(
+      1,
+    );
+  });
+
   it("atomically rejects simultaneous overlapping bookings from independent clients", async () => {
     const clients = await Promise.all(Array.from({ length: 3 }, () => testDatabase.createClient()));
     try {
@@ -440,6 +639,54 @@ describe("ReservationService", () => {
       staff: "staff-1",
     });
     expect(aligned.isOk()).toBe(true);
+  });
+
+  it("keeps an occupied day's slot duration when a newer policy applies", async () => {
+    const booking = {
+      who: "anonymous" as const,
+      name: "Customer",
+      email: "policy@example.com",
+      date: "2099-06-15",
+      startMinute: createMinuteOfDay(600),
+      offerings: ["haircut"],
+      staff: "staff-1",
+    };
+    expect((await service.insertByAnonymous(booking)).isOk()).toBe(true);
+    await testDatabase.database.insert(table.reservationSlotPolicy).values({
+      effectiveFromDate: "2099-06-01",
+      slotDurationMinutes: 30,
+    });
+
+    const result = await service.insertByAnonymous({
+      ...booking,
+      startMinute: createMinuteOfDay(645),
+    });
+
+    expect(result.isOk()).toBe(true);
+    expect(await testDatabase.database.select().from(table.reservationDayOccupancy)).toMatchObject([
+      { slotDurationMinutes: 15 },
+    ]);
+  });
+
+  it("rejects a new booking day without an effective slot policy before writing", async () => {
+    await testDatabase.database.delete(table.reservationSlotPolicy);
+
+    const result = await service.insertByAnonymous({
+      who: "anonymous",
+      name: "Customer",
+      email: "policy@example.com",
+      date: "2099-06-15",
+      startMinute: createMinuteOfDay(600),
+      offerings: ["haircut"],
+      staff: "staff-1",
+    });
+
+    expect(result.isErr() && result.error).toEqual({
+      type: "invalid-data",
+      reason: "slot-policy-not-configured",
+    });
+    expect(await testDatabase.database.select().from(table.reservation)).toEqual([]);
+    expect(await testDatabase.database.select().from(table.reservationDayOccupancy)).toEqual([]);
   });
 
   it("expires confirmed reservations at the next midnight in Europe/Rome", async () => {
