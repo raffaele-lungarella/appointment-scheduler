@@ -17,24 +17,12 @@
 <Hero />
 
 <section class="py-20 md:py-28" aria-labelledby="club-title">
-  <div class="grid gap-10 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:gap-16">
-    <div>
-      <h2 id="club-title" class="max-w-xl typo-heading text-balance">
-        Emi Hair Club è un posto in cui fermarsi, non solo passare.
-      </h2>
-    </div>
-
     <div class="max-w-2xl space-y-6 typo-body-lg text-pretty">
       <p>
-        Emi Hair Club nasce come salone, ma vive come un piccolo club di paese: un luogo dove
-        entrare per un taglio e restare per una conversazione. Qui si parla di tutto — sport,
-        lavoro, musica, vita quotidiana — con la stessa naturalezza con cui si sistema una barba o
-        si definisce un taglio.
+        Emi Hair Club nasce come salone, ma vive come un club: un luogo dove entrare per un taglio e restare per una conversazione.
       </p>
       <p class="text-muted-foreground">
-        Il servizio è curato, preciso e personale, ma l'atmosfera resta semplice e familiare. Ogni
-        appuntamento è pensato per farti uscire meglio di come sei entrato: nello stile, certo, ma
-        anche nell'umore.
+        Il servizio è curato, preciso e personale, ma l'atmosfera resta semplice e familiare.
       </p>
       <div class="flex flex-col items-start gap-1 pt-2 sm:flex-row sm:gap-3">
         <Button variant="link" href="/prices">
@@ -46,38 +34,15 @@
           <ArrowUpRight />
         </Button>
       </div>
-    </div>
   </div>
 </section>
 
 <Separator />
 
 <section class="py-20 md:py-28" aria-labelledby="location-title">
-  <div class="mb-10 grid gap-8 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:gap-16">
-    <div>
-      <h2 id="location-title" class="max-w-xl typo-heading text-balance">
-        Uno spazio caldo, vissuto, fatto per sentirsi a casa.
-      </h2>
-    </div>
-
-    <div class="max-w-2xl space-y-6 typo-body-lg text-pretty">
-      <p>
-        Il salone si trova a Bettolle, in provincia di Siena. Mattoni, luci calde e postazioni di
-        lavoro curate creano un ambiente intimo, rilassato e riconoscibile.
-      </p>
-      <p class="text-muted-foreground">
-        Scopri gli interni, le poltrone e gli angoli del club: sono parte dell'esperienza tanto
-        quanto il taglio.
-      </p>
-      <Button variant="link" target="_blank" href={BARBER_SHOP_DETAILS.instagram}>
-        Seguimi su instagram
-        <ArrowUpRight />
-      </Button>
-    </div>
-  </div>
-
   <section aria-label="Galleria fotografica del salone">
-    <div class="grid auto-rows-[200px] grid-cols-1 gap-4 lg:grid-cols-4">
+    <h1 class="typo-display font-flatline mb-8">Il Club</h1>
+    <div class="grid auto-rows-50 grid-cols-1 gap-4 lg:grid-cols-4">
       <!-- Large 2x2 -->
       <div
         role="img"
