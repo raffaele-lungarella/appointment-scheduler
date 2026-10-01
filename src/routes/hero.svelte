@@ -21,29 +21,26 @@
   ></div>
 
   <div class="relative z-10 flex min-h-[70svh] w-full items-end p-6 sm:p-10 md:p-14 lg:p-16">
-    <div class="max-w-4xl">
+    <div class="w-full max-w-4xl">
       <h1 id="home-hero-title" class="max-w-3xl typo-display text-balance text-white">
         Emi<br />Hair Club
       </h1>
 
-      <p class="mt-8 max-w-xl typo-body-lg text-white/65">
-        Il tuo salone di fiducia per tagli di capelli unici e personalizzati.
-      </p>
 
       <div class="mt-10 flex flex-col gap-3 sm:flex-row">
         <Button
           href={ROUTES.book}
           size="lg"
-          class="bg-white text-black shadow-lg shadow-black/20 not-disabled:hover:bg-white/90"
+          class="h-14 w-full px-8 text-base sm:w-auto bg-white text-black shadow-lg shadow-black/20 not-disabled:hover:bg-white/90"
         >
           Prenota ora
-          <ArrowUpRight />
+          <ArrowUpRight class="size-5" />
         </Button>
         <Button
           href={ROUTES.prices}
           size="lg"
           variant="outline"
-          class="border-white/50 bg-black/30 text-white backdrop-blur-sm not-disabled:hover:border-white/70 not-disabled:hover:bg-black/45 not-disabled:hover:text-white"
+          class="h-14 w-full px-8 text-base sm:w-auto border-white/50 bg-black/30 text-white backdrop-blur-sm not-disabled:hover:border-white/70 not-disabled:hover:bg-black/45 not-disabled:hover:text-white"
         >
           Vedi i servizi
         </Button>
