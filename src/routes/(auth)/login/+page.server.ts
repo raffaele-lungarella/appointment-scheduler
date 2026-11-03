@@ -102,7 +102,7 @@ export const actions: Actions = {
     if (userResult.isErr()) {
       return message(recoverForm, {
         success: true,
-        text: "Ti arriverà una mail per aggiornare la password.",
+        text: "Ti arriverà una mail per aggiornare la password del tuo account.",
       });
     }
 

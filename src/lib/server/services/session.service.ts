@@ -2,7 +2,7 @@ import { err, ok } from "$lib/modules/result";
 import type { Database } from "$lib/server/db/client";
 import { getProductionDatabase } from "$lib/server/db/production";
 import * as table from "$lib/server/db/schema";
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 
 import { createLogger } from "../logger";
 import { Service } from "./service";
@@ -69,6 +69,15 @@ export class SessionService extends Service {
         await tx
           .delete(table.session)
           .where(and(eq(table.session.userID, userID), ne(table.session.id, currentSessionID)));
+        await tx
+          .delete(table.publicToken)
+          .where(
+            and(
+              eq(table.publicToken.userID, userID),
+              inArray(table.publicToken.purpose, ["password_reset", "email_change"]),
+              isNull(table.publicToken.consumedAt),
+            ),
+          );
         return user;
       });
     } catch (e) {

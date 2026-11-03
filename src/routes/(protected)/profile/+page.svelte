@@ -8,7 +8,7 @@
   import * as AlertDialog from "$lib/components/ui/alert-dialog/index.js";
   import * as Alert from "$lib/components/ui/alert/index.js";
   import Button from "$lib/components/ui/button/button.svelte";
-  import { buttonVariants } from "$lib/components/ui/button/index.js";
+
   import * as Card from "$lib/components/ui/card/index.js";
   import * as Dialog from "$lib/components/ui/dialog/index.js";
   import * as Form from "$lib/components/ui/form/index.js";
@@ -33,17 +33,23 @@
   });
 
   let isOpen = $state(false);
+  let deleteCurrentPassword = $state("");
 
   const deleteAccount: SubmitFunction = () => {
     return async ({ result }) => {
+      deleteCurrentPassword = "";
       if (result.type === "success" || result.type === "redirect") {
         toast.success("Account eliminato");
         await invalidateAll();
         goto("/");
+        isOpen = false;
       } else {
-        toast.error(`Impossibile eliminare l'account. Riprova più tardi.`);
+        toast.error(
+          result.type === "failure" && typeof result.data?.message === "string"
+            ? result.data.message
+            : "Impossibile eliminare l'account. Riprova più tardi.",
+        );
       }
-      isOpen = false;
     };
   };
 
@@ -198,14 +204,21 @@
         Tutte le tue prenotazioni, passate e future verrano eliminate
       </AlertDialog.Description>
     </AlertDialog.Header>
-    <AlertDialog.Footer>
-      <AlertDialog.Cancel>Annulla</AlertDialog.Cancel>
-      <form action="?/deleteAccount" method="post" use:enhance={deleteAccount}>
-        <AlertDialog.Action class="{buttonVariants({ variant: 'destructive' })} w-full">
-          Elimina account
-        </AlertDialog.Action>
-      </form>
-    </AlertDialog.Footer>
+    <form action="?/deleteAccount" method="post" use:enhance={deleteAccount} class="space-y-4">
+      <div class="space-y-2">
+        <Label for="delete-current-password">Password attuale</Label>
+        <Passwordinput
+          id="delete-current-password"
+          name="currentPassword"
+          required
+          bind:value={deleteCurrentPassword}
+        />
+      </div>
+      <AlertDialog.Footer>
+        <AlertDialog.Cancel>Annulla</AlertDialog.Cancel>
+        <Button type="submit" variant="destructive">Elimina account</Button>
+      </AlertDialog.Footer>
+    </form>
   </AlertDialog.Content>
 </AlertDialog.Root>
 
@@ -228,6 +241,15 @@
               placeholder="mariorossi@example.com"
               bind:value={$changeEmailData.email}
             />
+          {/snippet}
+        </Form.Control>
+        <Form.FieldErrors />
+      </Form.Field>
+      <Form.Field form={changeEmailSForm} name="currentPassword">
+        <Form.Control>
+          {#snippet children({ props })}
+            <Form.Label>Password attuale</Form.Label>
+            <Passwordinput {...props} bind:value={$changeEmailData.currentPassword} />
           {/snippet}
         </Form.Control>
         <Form.FieldErrors />

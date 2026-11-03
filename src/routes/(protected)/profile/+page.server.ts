@@ -113,6 +113,8 @@ export const actions: Actions = {
     }
 
     const form = await superValidate(request, zod(profileChangeEmailSchema));
+    const currentPassword = form.data.currentPassword;
+    form.data.currentPassword = "";
     if (!form.valid) {
       return fail(400, { changeEmailForm: form });
     }
@@ -120,6 +122,24 @@ export const actions: Actions = {
     const email = form.data.email.toLowerCase().trim();
 
     const userService = UserService.get();
+    const serverUser = await userService.getByID(locals.user.account.id);
+    if (serverUser.isErr()) {
+      return message(
+        form,
+        { success: false, text: "Impossibile cambiare la mail. Riprova più tardi." },
+        { status: serverUser.error.type === "storage-error" ? 503 : 401 },
+      );
+    }
+
+    const validPassword = await verify(serverUser.value.account.passwordHash, currentPassword, {});
+    if (!validPassword) {
+      return message(
+        form,
+        { success: false, text: "La password attuale non è corretta." },
+        { status: 400 },
+      );
+    }
+
     const existingUser = await userService.getByEmail(email);
 
     if (existingUser.isErr() && existingUser.error.type === "storage-error") {
@@ -175,7 +195,24 @@ export const actions: Actions = {
       return fail(403);
     }
 
+    const formData = await event.request.formData();
+    const currentPassword = formData.get("currentPassword");
+    if (typeof currentPassword !== "string" || !currentPassword) {
+      return fail(400, { message: "Inserisci la password attuale." });
+    }
+
     const userService = UserService.get();
+    const serverUser = await userService.getByID(user.account.id);
+    if (serverUser.isErr()) {
+      return fail(serverUser.error.type === "storage-error" ? 503 : 401, {
+        message: "Impossibile eliminare l'account. Riprova più tardi.",
+      });
+    }
+
+    const validPassword = await verify(serverUser.value.account.passwordHash, currentPassword, {});
+    if (!validPassword) {
+      return fail(400, { message: "La password attuale non è corretta." });
+    }
 
     logger.warn("Deleting account of user: " + user.account.email);
 

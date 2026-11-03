@@ -7,5 +7,5 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 
   const title = "Home -";
 
-  return { user: locals.user, title, banner };
+  return { user: locals.user, title, banner: banner?.visible ? banner : null };
 };

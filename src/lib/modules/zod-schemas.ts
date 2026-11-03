@@ -5,7 +5,10 @@ export const emailSchema = z.email({ error: "Inserisci una mail valida" });
 
 export const recoverPasswordSchema = z.object({ email: emailSchema });
 
-export const profileChangeEmailSchema = z.object({ email: emailSchema });
+export const profileChangeEmailSchema = z.object({
+  email: emailSchema,
+  currentPassword: z.string().min(1, { error: "Inserisci la password attuale" }),
+});
 
 export const loginSchema = z.object({
   email: z.email({ error: "Inserisci una mail valida" }),

@@ -17,23 +17,24 @@
 <Hero />
 
 <section class="py-20 md:py-28" aria-labelledby="club-title">
-    <div class="max-w-2xl space-y-6 typo-body-lg text-pretty">
-      <p>
-        Emi Hair Club nasce come salone, ma vive come un club: un luogo dove entrare per un taglio e restare per una conversazione.
-      </p>
-      <p class="text-muted-foreground">
-        Il servizio è curato, preciso e personale, ma l'atmosfera resta semplice e familiare.
-      </p>
-      <div class="flex flex-col items-start gap-1 pt-2 sm:flex-row sm:gap-3">
-        <Button variant="link" href="/prices">
-          Vedi tutti i servizi
-          <ArrowUpRight />
-        </Button>
-        <Button variant="link" href={BARBER_SHOP_DETAILS.google_page} target="_blank">
-          Dove trovarmi
-          <ArrowUpRight />
-        </Button>
-      </div>
+  <div class="max-w-2xl space-y-6 typo-body-lg text-pretty">
+    <p>
+      Emi Hair Club nasce come salone, ma vive come un club: un luogo dove entrare per un taglio e
+      restare per una conversazione.
+    </p>
+    <p class="text-muted-foreground">
+      Il servizio è curato, preciso e personale, ma l'atmosfera resta semplice e familiare.
+    </p>
+    <div class="flex flex-col items-start gap-1 pt-2 sm:flex-row sm:gap-3">
+      <Button variant="link" href="/prices">
+        Vedi tutti i servizi
+        <ArrowUpRight />
+      </Button>
+      <Button variant="link" href={BARBER_SHOP_DETAILS.google_page} target="_blank">
+        Dove trovarmi
+        <ArrowUpRight />
+      </Button>
+    </div>
   </div>
 </section>
 

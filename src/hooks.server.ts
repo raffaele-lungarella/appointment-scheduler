@@ -115,4 +115,34 @@ const handleOldRoutes: Handle = async ({ event, resolve }) => {
   return resolve(event);
 };
 
-export const handle: Handle = sequence(handleOldRoutes, handleRateLimit, handleAuth, handleLogging);
+const handleSecurity: Handle = async ({ event, resolve }) => {
+  // SvelteKit 2 enhanced forms can interpret these paths as protocol-relative URLs.
+  if (event.url.pathname.startsWith("//")) {
+    return new Response("Invalid request path", { status: 400 });
+  }
+
+  const response = await resolve(event);
+  response.headers.set("Referrer-Policy", "no-referrer");
+  response.headers.set("X-Content-Type-Options", "nosniff");
+
+  const routeID = event.route.id;
+  if (
+    event.locals.user ||
+    routeID?.includes("[token]") ||
+    routeID === "/book/pending/[id]" ||
+    routeID?.startsWith("/(auth)") ||
+    routeID?.startsWith("/(protected)")
+  ) {
+    response.headers.set("Cache-Control", "private, no-store");
+  }
+
+  return response;
+};
+
+export const handle: Handle = sequence(
+  handleSecurity,
+  handleOldRoutes,
+  handleRateLimit,
+  handleAuth,
+  handleLogging,
+);

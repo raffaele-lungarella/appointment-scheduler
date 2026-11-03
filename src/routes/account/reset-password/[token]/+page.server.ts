@@ -36,12 +36,23 @@ export const actions: Actions = {
       return fail(400, { changePasswordForm: form });
     }
 
+    const tokenService = PublicTokenService.get();
+    const resetToken = await tokenService.inspect(event.params.token, "password_reset");
+    if (resetToken.status === "error") return error(503);
+    if (resetToken.status !== "valid" || !resetToken.token.userID) {
+      return message(
+        form,
+        { success: false, text: "La richiesta non è valida o è scaduta." },
+        { status: 400 },
+      );
+    }
+
     const passwordHash = await hash(form.data.newPassword, {
       memoryCost: 19456,
       timeCost: 2,
       parallelism: 1,
     });
-    const userID = await PublicTokenService.get().resetPassword(event.params.token, passwordHash);
+    const userID = await tokenService.resetPassword(event.params.token, passwordHash);
 
     if (userID.isErr()) {
       if (userID.error.type === "storage-error") return error(503);

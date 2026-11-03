@@ -4,7 +4,7 @@ import { getProductionDatabase } from "$lib/server/db/production";
 import * as table from "$lib/server/db/schema";
 import { createLogger } from "$lib/server/logger";
 import { encodeBase64url } from "@oslojs/encoding";
-import { and, eq, gt, isNull, lt, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, lt, sql } from "drizzle-orm";
 import { createHash } from "node:crypto";
 
 import { reservationExpiresAt } from "./reservation.service";
@@ -306,6 +306,15 @@ export class PublicTokenService extends Service {
                 sql`${table.session.id} != ${currentSessionID}`,
               ),
             );
+          await tx
+            .delete(table.publicToken)
+            .where(
+              and(
+                eq(table.publicToken.userID, userID),
+                eq(table.publicToken.purpose, "password_reset"),
+                isNull(table.publicToken.consumedAt),
+              ),
+            );
           return user;
         })
         .then((user) => (user ? ok(user) : err({ type: "invalid-input" })));
@@ -351,6 +360,15 @@ export class PublicTokenService extends Service {
 
           if (!user) throw new Error("Account is missing");
           await tx.delete(table.session).where(eq(table.session.userID, user.id));
+          await tx
+            .delete(table.publicToken)
+            .where(
+              and(
+                eq(table.publicToken.userID, user.id),
+                inArray(table.publicToken.purpose, ["password_reset", "email_change"]),
+                isNull(table.publicToken.consumedAt),
+              ),
+            );
           return user.id;
         })
         .then((userID) => (userID ? ok(userID) : err({ type: "invalid-input" })));

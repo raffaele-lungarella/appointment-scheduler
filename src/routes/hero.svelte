@@ -26,7 +26,6 @@
         Emi<br />Hair Club
       </h1>
 
-
       <div class="mt-10 flex flex-col gap-3 sm:flex-row">
         <Button
           href={ROUTES.book}

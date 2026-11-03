@@ -3,7 +3,7 @@ import type { Database } from "$lib/server/db/client";
 import { sql } from "drizzle-orm";
 
 export type RateLimitPolicy = {
-  id: "login" | "signup" | "password-recovery" | "booking";
+  id: "login" | "signup" | "password-recovery" | "password-reset" | "profile-security" | "booking";
   limit: number;
   windowMs: number;
 };
@@ -16,6 +16,8 @@ const policies = {
   login: { id: "login", limit: 10, windowMs: 15 * 60_000 },
   signup: { id: "signup", limit: 5, windowMs: 60 * 60_000 },
   "password-recovery": { id: "password-recovery", limit: 5, windowMs: 60 * 60_000 },
+  "password-reset": { id: "password-reset", limit: 10, windowMs: 15 * 60_000 },
+  "profile-security": { id: "profile-security", limit: 10, windowMs: 15 * 60_000 },
   booking: { id: "booking", limit: 10, windowMs: 15 * 60_000 },
 } as const satisfies Record<string, RateLimitPolicy>;
 
@@ -30,13 +32,29 @@ export function getRateLimitPolicy(
 ): RateLimitPolicy | null {
   if (method !== "POST" || !routeID) return null;
 
-  const action = searchParams.get("/");
+  let action: string | null = null;
+  for (const key of searchParams.keys()) {
+    if (key.startsWith("/")) {
+      action = key.slice(1);
+      break;
+    }
+  }
   if (routeID === "/(auth)/login" && action === "login") return policies.login;
   if (routeID === "/(auth)/login" && action === "recoverPassword") {
     return policies["password-recovery"];
   }
+  if (
+    routeID === "/(protected)/profile" &&
+    action !== null &&
+    ["changeEmail", "changePassword", "deleteAccount"].includes(action)
+  ) {
+    return policies["profile-security"];
+  }
   if (routeID === "/(auth)/signup" && action === null) return policies.signup;
   if (routeID === "/book" && action === null) return policies.booking;
+  if (routeID === "/account/reset-password/[token]" && action === null) {
+    return policies["password-reset"];
+  }
   return null;
 }
 
