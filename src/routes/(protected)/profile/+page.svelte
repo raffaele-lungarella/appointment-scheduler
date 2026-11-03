@@ -115,7 +115,7 @@
       <Card.Content>
         <div class="space-y-4">
           {#if data.user.role === "staff"}
-            <AvatarSection staff={data.user} />
+            <AvatarSection staff={data.user} avatarEditor={data.avatarEditor} />
             <Separator />
           {/if}
           <form action="?/updateInfo" method="post" class="space-y-4">

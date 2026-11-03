@@ -10,8 +10,9 @@
   import { getInitials } from "$lib/utils";
   import { mergeProps } from "bits-ui";
   import { SvelteMap } from "svelte/reactivity";
+  import { toast } from "svelte-sonner";
 
-  const { staff } = $props();
+  const { staff, avatarEditor } = $props();
 
   const OUTPUT_SIZE = 400;
 
@@ -67,13 +68,13 @@
   }
 
   function openAvatarEdit() {
-    avatarOriginalSrc = null;
+    avatarOriginalSrc = avatarEditor?.original ?? avatarPreview;
     isImageLoaded = false;
     imageNaturalWidth = 0;
     imageNaturalHeight = 0;
-    initialDisplayScale = 0;
-    initialOffsetX = 0;
-    initialOffsetY = 0;
+    initialDisplayScale = avatarEditor?.displayScale ?? 0;
+    initialOffsetX = avatarEditor?.offsetX ?? 0;
+    initialOffsetY = avatarEditor?.offsetY ?? 0;
     avatarDialogOpen = true;
   }
 
@@ -237,7 +238,6 @@
     (els.namedItem("offsetY") as HTMLInputElement).value = String(offsetY);
     (els.namedItem("displayScale") as HTMLInputElement).value = String(displayScale);
 
-    avatarDialogOpen = false;
     updateAvatarForm.requestSubmit();
   }
 </script>
@@ -386,11 +386,15 @@
     method="POST"
     bind:this={updateAvatarForm}
     use:enhance={() =>
-      ({ result }) => {
-        if (result.type === "success" && pendingAvatarPreview) {
+      async ({ result, update }) => {
+        if (result.type === "success" && result.data?.avatarSuccess && pendingAvatarPreview) {
           avatarPreview = pendingAvatarPreview;
-          avatarOriginalSrc = null;
           pendingAvatarPreview = null;
+          avatarDialogOpen = false;
+          await update();
+        } else {
+          pendingAvatarPreview = null;
+          toast.error("Impossibile salvare l'avatar. Riprova.");
         }
       }}
     class="hidden"
@@ -407,11 +411,15 @@
     method="POST"
     bind:this={deleteAvatarForm}
     use:enhance={() =>
-      ({ result }) => {
-        if (result.type === "success") {
+      async ({ result, update }) => {
+        if (result.type === "success" && result.data?.avatarSuccess) {
           avatarPreview = null;
           avatarOriginalSrc = null;
           pendingAvatarPreview = null;
+          avatarDialogOpen = false;
+          await update();
+        } else {
+          toast.error("Impossibile eliminare l'avatar. Riprova.");
         }
       }}
     class="hidden"

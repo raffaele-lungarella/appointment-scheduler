@@ -21,8 +21,20 @@ export const load: PageServerLoad = async ({ locals }) => {
 
   const changeEmailForm = await superValidate(zod(profileChangeEmailSchema));
   const changePasswordForm = await superValidate(zod(profileChangePasswordSchema));
+  const staff =
+    locals.user.role === "staff"
+      ? await StaffService.get().getByUserID(locals.user.account.id)
+      : null;
 
   return {
+    avatarEditor: staff
+      ? {
+          original: staff.avatarOriginal,
+          offsetX: staff.avatarOffsetX,
+          offsetY: staff.avatarOffsetY,
+          displayScale: staff.avatarDisplayScale,
+        }
+      : null,
     user: locals.user,
     title: "Profilo -",
     updatedEmail: null,
@@ -45,7 +57,7 @@ export const actions: Actions = {
   },
 
   updateAvatar: async ({ request, locals }) => {
-    if (!locals.user) return { avatarSuccess: false };
+    if (locals.user?.role !== "staff") return fail(403, { avatarSuccess: false });
 
     const data = await request.formData();
     const avatarBase64 = getString(data, "avatarBase64");
@@ -76,10 +88,10 @@ export const actions: Actions = {
     return result ? { avatarSuccess: true } : fail(400, { avatarSuccess: false });
   },
   deleteAvatar: async ({ locals }) => {
-    if (!locals.user) return { avatarSuccess: false };
+    if (locals.user?.role !== "staff") return fail(403, { avatarSuccess: false });
 
     const result = await StaffService.get().deleteAvatar(locals.user.account.id);
-    return result ? { avatarSuccess: true } : fail(500, { avatarSuccess: false });
+    return result.isOk() ? { avatarSuccess: true } : fail(500, { avatarSuccess: false });
   },
   updateInfo: async ({ locals, request, url }) => {
     const userService = UserService.get();

@@ -20,7 +20,7 @@
 </script>
 
 {#if isBannerVisible}
-  <div class="cookie-banner flex w-full flex-row-reverse p-12">
+  <div class="cookie-banner z-40 flex w-full flex-row-reverse p-12">
     <div class="flex rounded-lg border bg-sidebar shadow-lg md:w-1/2 lg:w-1/3 border-border">
       <div class="p-4">
         <p class="text-xs">
