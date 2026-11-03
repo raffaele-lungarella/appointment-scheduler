@@ -32,43 +32,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Pull Vercel production settings
-        run: pnpm dlx vercel@latest pull --yes --environment=production --token="${{ secrets.VERCEL_TOKEN }}"
-
-      - name: Build production deployment
-        run: pnpm dlx vercel@latest build --prod --token="${{ secrets.VERCEL_TOKEN }}"
-
-      - name: Apply production database migrations
-        run: |
-          node --input-type=module <<'NODE'
-          import { readFileSync } from "node:fs";
-          import { spawnSync } from "node:child_process";
-          import { parse } from "dotenv";
-
-          const env = parse(readFileSync(".vercel/.env.production.local"));
-          const url = env.DATABASE_CONNECTION_URL;
-          const authToken = env.DATABASE_AUTH_TOKEN;
-          if (!url || !authToken || !URL.canParse(url) || !["libsql:", "https:"].includes(new URL(url).protocol)) {
-            throw new Error("Vercel production must configure a remote database URL and auth token");
-          }
-
-          for (const value of [url, authToken]) {
-            const escaped = value.replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A");
-            console.log(`::add-mask::${escaped}`);
-          }
-
-          const result = spawnSync(process.execPath, ["node_modules/drizzle-kit/bin.cjs", "migrate"], {
-            stdio: "inherit",
-            env: { ...process.env, DATABASE_CONNECTION_URL: url, DATABASE_AUTH_TOKEN: authToken },
-          });
-          if (result.error) throw result.error;
-          process.exit(result.status ?? 1);
-          NODE
 
       - name: Deploy to production
-        run: pnpm dlx vercel@latest deploy --prebuilt --prod --token="${{ secrets.VERCEL_TOKEN }}"
+        run: pnpm dlx vercel@latest deploy --yes --prod --token="${{ secrets.VERCEL_TOKEN }}"
